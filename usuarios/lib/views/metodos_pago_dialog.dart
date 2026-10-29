@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
+import 'paypal_checkout_dialog.dart';
 
 /// Modal para seleccionar y procesar métodos de pago in-app
 class MetodosPagoDialog extends StatefulWidget {
@@ -90,6 +91,26 @@ class _MetodosPagoDialogState extends State<MetodosPagoDialog> {
   }
 
   void _procesarPago() async {
+    final direccionFinal = _direccionCtrl.text.trim().isNotEmpty
+        ? _direccionCtrl.text.trim()
+        : 'Mi Ubicación Actual (GPS: 19.4326° N, 99.1332° O)';
+
+    if (_metodoSeleccionado == 'PayPal') {
+      PayPalCheckoutDialog.show(
+        context,
+        total: widget.total,
+        usuarioEmail: 'cliente.paypal@ejemplo.com',
+        onPagoExitoso: (transactionId, paypalEmail) {
+          Navigator.pop(context);
+          widget.onPagoConfirmado(
+            'PayPal ($transactionId)',
+            direccionFinal,
+          );
+        },
+      );
+      return;
+    }
+
     setState(() => _isProcessing = true);
     await Future.delayed(const Duration(milliseconds: 1200));
 
@@ -97,9 +118,7 @@ class _MetodosPagoDialogState extends State<MetodosPagoDialog> {
     Navigator.pop(context);
     widget.onPagoConfirmado(
       _metodoSeleccionado,
-      _direccionCtrl.text.trim().isNotEmpty
-          ? _direccionCtrl.text.trim()
-          : 'Mi Ubicación Actual (GPS: 19.4326° N, 99.1332° O)',
+      direccionFinal,
     );
   }
 

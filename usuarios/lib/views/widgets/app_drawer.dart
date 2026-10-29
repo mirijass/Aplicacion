@@ -9,6 +9,7 @@ import 'role_badge.dart';
 import '../productos_view.dart';
 import '../usuarios_list_view.dart';
 import '../historial_compras_view.dart';
+import '../gestopago_view.dart';
 import '../configuracion_view.dart';
 import '../cambiar_contrasena_dialog.dart';
 import '../login_view.dart';
@@ -267,6 +268,50 @@ class AppDrawer extends StatelessWidget {
                           ),
                         ),
                       );
+                    },
+                  ),
+                ),
+
+                // 4. Pago de Servicios GestoPago
+                Container(
+                  margin: const EdgeInsets.only(bottom: 4),
+                  decoration: BoxDecoration(
+                    color: currentRoute == 'gestopago'
+                        ? (isDark ? const Color(0xFF38314A) : AppTheme.primaryExtraLight)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.verified_rounded,
+                      color: currentRoute == 'gestopago'
+                          ? AppTheme.primaryPurple
+                          : mutedColor,
+                    ),
+                    title: Text(
+                      'Productos (XML)',
+                      style: TextStyle(
+                        fontWeight: currentRoute == 'gestopago' ? FontWeight.bold : FontWeight.w500,
+                        color: currentRoute == 'gestopago' ? AppTheme.primaryPurple : textMain,
+                      ),
+                    ),
+                    subtitle: const Text('Catálogo XML, Pagos y Recargas', style: TextStyle(fontSize: 11)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (currentRoute != 'gestopago') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => GestoPagoView(
+                              authController: authController,
+                              compraController: compraController,
+                              productoController: productoController,
+                              usuarioController: usuarioController,
+                              themeController: themeController,
+                            ),
+                          ),
+                        );
+                      }
                     },
                   ),
                 ),

@@ -145,7 +145,36 @@ class DBHelper {
     final countProds = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM producto')) ?? 0;
     if (countProds == 0) {
       await _seedProductos(db);
+    } else {
+      // Actualizar automáticamente imágenes de fakestoreapi que generaban error 403 en teléfonos
+      await _actualizarImagenesRotas(db);
     }
+  }
+
+  /// Actualiza productos con imágenes rotas de fakestoreapi a URLs directas de Unsplash
+  Future<void> _actualizarImagenesRotas(Database db) async {
+    try {
+      await db.rawUpdate('''
+        UPDATE producto SET imagen = 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500' 
+        WHERE (imagen LIKE '%fakestoreapi%' OR imagen = '') AND nombre LIKE '%Mochila%';
+      ''');
+      await db.rawUpdate('''
+        UPDATE producto SET imagen = 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500' 
+        WHERE (imagen LIKE '%fakestoreapi%' OR imagen = '') AND nombre LIKE '%Camiseta%';
+      ''');
+      await db.rawUpdate('''
+        UPDATE producto SET imagen = 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500' 
+        WHERE (imagen LIKE '%fakestoreapi%' OR imagen = '') AND nombre LIKE '%Chamarra%';
+      ''');
+      await db.rawUpdate('''
+        UPDATE producto SET imagen = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500' 
+        WHERE (imagen LIKE '%fakestoreapi%' OR imagen = '') AND nombre LIKE '%Reloj%';
+      ''');
+      await db.rawUpdate('''
+        UPDATE producto SET imagen = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500' 
+        WHERE (imagen LIKE '%fakestoreapi%' OR imagen = '') AND nombre LIKE '%Audífonos%';
+      ''');
+    } catch (_) {}
   }
 
   /// Migración / actualización de base de datos
@@ -211,31 +240,31 @@ class DBHelper {
         'nombre': 'Mochila Urbana Casual',
         'precio': 499.00,
         'cantidad': 50,
-        'imagen': 'https://fakestoreapi.com/img/81fPKd-2AYL._AC_SL1500_.jpg',
+        'imagen': 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500',
       },
       {
         'nombre': 'Camiseta Slim Fit Algodón',
         'precio': 299.00,
         'cantidad': 100,
-        'imagen': 'https://fakestoreapi.com/img/71-3HjGNDUL._AC_SY879._SX._UX._SY._UY_.jpg',
+        'imagen': 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500',
       },
       {
         'nombre': 'Chamarra de Algodón Premium',
         'precio': 899.00,
         'cantidad': 30,
-        'imagen': 'https://fakestoreapi.com/img/71li-ujtlUL._AC_UX679_.jpg',
+        'imagen': 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500',
       },
       {
         'nombre': 'Reloj Inteligente Sport',
         'precio': 1299.00,
         'cantidad': 25,
-        'imagen': 'https://fakestoreapi.com/img/71pWzhdJNwL._AC_UL640_QL65_ML3_.jpg',
+        'imagen': 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500',
       },
       {
         'nombre': 'Audífonos Bluetooth Estéreo',
         'precio': 650.00,
         'cantidad': 40,
-        'imagen': 'https://fakestoreapi.com/img/61IBBVJvSDL._AC_SY879_.jpg',
+        'imagen': 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500',
       },
     ];
 
@@ -285,11 +314,11 @@ class DBHelper {
 
     if (_fallbackProductos.isEmpty) {
       _fallbackProductos.addAll([
-        Producto(id: 1, nombre: 'Mochila Urbana Casual', precio: 499.00, cantidad: 50, imagen: 'https://fakestoreapi.com/img/81fPKd-2AYL._AC_SL1500_.jpg'),
-        Producto(id: 2, nombre: 'Camiseta Slim Fit Algodón', precio: 299.00, cantidad: 100, imagen: 'https://fakestoreapi.com/img/71-3HjGNDUL._AC_SY879._SX._UX._SY._UY_.jpg'),
-        Producto(id: 3, nombre: 'Chamarra de Algodón Premium', precio: 899.00, cantidad: 30, imagen: 'https://fakestoreapi.com/img/71li-ujtlUL._AC_UX679_.jpg'),
-        Producto(id: 4, nombre: 'Reloj Inteligente Sport', precio: 1299.00, cantidad: 25, imagen: 'https://fakestoreapi.com/img/71pWzhdJNwL._AC_UL640_QL65_ML3_.jpg'),
-        Producto(id: 5, nombre: 'Audífonos Bluetooth Estéreo', precio: 650.00, cantidad: 40, imagen: 'https://fakestoreapi.com/img/61IBBVJvSDL._AC_SY879_.jpg'),
+        Producto(id: 1, nombre: 'Mochila Urbana Casual', precio: 499.00, cantidad: 50, imagen: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=500'),
+        Producto(id: 2, nombre: 'Camiseta Slim Fit Algodón', precio: 299.00, cantidad: 100, imagen: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500'),
+        Producto(id: 3, nombre: 'Chamarra de Algodón Premium', precio: 899.00, cantidad: 30, imagen: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500'),
+        Producto(id: 4, nombre: 'Reloj Inteligente Sport', precio: 1299.00, cantidad: 25, imagen: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'),
+        Producto(id: 5, nombre: 'Audífonos Bluetooth Estéreo', precio: 650.00, cantidad: 40, imagen: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500'),
       ]);
       _nextProductoId = 6;
     }
