@@ -76,6 +76,42 @@ void main() {
       expect(resultado['pinDigital'], isNotNull);
       expect(resultado['folioGestoPago'], startsWith('GP-AUTH-'));
     });
+
+    test('Valida restricciones de número telefónico (10 dígitos) y bloqueo por saldo insuficiente', () async {
+      expect(GestoPagoService.validarNumeroTelefonico('5512345678'), isTrue);
+      expect(GestoPagoService.validarNumeroTelefonico('12345'), isFalse);
+      expect(GestoPagoService.validarNumeroTelefonico('0012345678'), isFalse);
+      expect(GestoPagoService.validarNumeroTelefonico('55123abcde'), isFalse);
+
+      final recargas = await GestoPagoService.obtenerServiciosPorSeccion(
+        seccion: SeccionGestoPago.recargas,
+      );
+      final recarga = recargas.first;
+
+      // Rechazar recarga con número inválido
+      final telInvalido = await GestoPagoService.procesarTransaccion(
+        servicio: recarga,
+        referencia: '12345',
+        monto: 50.0,
+        metodoPago: 'Saldo con Proveedor',
+        usarSaldoProveedor: true,
+      );
+      expect(telInvalido['exito'], isFalse);
+
+      // Rechazar compra cuando el saldo es insuficiente ($0.00)
+      final saldoCtrl = SaldoProveedorController();
+      await saldoCtrl.reiniciarSaldoPruebas(nuevoSaldo: 0.0);
+
+      final sinSaldo = await GestoPagoService.procesarTransaccion(
+        servicio: recarga,
+        referencia: '5512345678',
+        monto: 50.0,
+        metodoPago: 'Saldo con Proveedor',
+        usarSaldoProveedor: true,
+      );
+      expect(sinSaldo['exito'], isFalse);
+      expect(sinSaldo['mensaje'], contains('Saldo insuficiente'));
+    });
   });
 
   group('SaldoProveedorController', () {

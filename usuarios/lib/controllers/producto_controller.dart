@@ -52,10 +52,14 @@ class ProductoController extends ChangeNotifier {
   }
 
   /// Cargar productos desde la base de datos local SQLite
-  Future<void> cargarProductos() async {
-    _isLoading = true;
-    _errorMessage = null;
-    _notifySafely();
+  Future<void> cargarProductos({bool forceLoading = false}) async {
+    if (forceLoading || _productos.isEmpty) {
+      _isLoading = true;
+      _errorMessage = null;
+      _notifySafely();
+    } else {
+      _errorMessage = null;
+    }
 
     try {
       _productos = await _dbHelper.getProductos(query: _searchQuery);
@@ -270,7 +274,7 @@ class ProductoController extends ChangeNotifier {
         _carrito = [];
       }
       _calcularTotal();
-      notifyListeners();
+      _notifySafely();
     } catch (e) {
       debugPrint('Error al cargar carrito: $e');
     }

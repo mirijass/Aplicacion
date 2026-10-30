@@ -83,34 +83,18 @@ class ProductImageWidget extends StatelessWidget {
       }
     }
 
-    // 3. Renderizar imagen de red adaptativa con cargador y respaldo de error
+    // 3. Renderizar imagen de red adaptativa optimizada en memoria y scroll
     return _wrapBorder(
       Image.network(
         finalUrl,
         width: width,
         height: height,
+        cacheWidth: (width * 2).toInt(),
         fit: fit,
         headers: const {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
-          return Container(
-            width: width,
-            height: height,
-            color: isDark ? const Color(0xFF2E2938) : AppTheme.primaryExtraLight,
-            child: Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppTheme.primaryPurple.withAlpha(150),
-                  value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                      : null,
-                ),
-              ),
-            ),
-          );
+          return placeholder;
         },
         errorBuilder: (context, error, stackTrace) {
           return placeholder;

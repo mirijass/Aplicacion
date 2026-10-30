@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/producto_xml_model.dart';
 import '../services/gestopago_service.dart';
 import '../controllers/auth_controller.dart';
@@ -39,6 +40,8 @@ class GestoPagoView extends StatefulWidget {
 class _GestoPagoViewState extends State<GestoPagoView> {
   final SaldoProveedorController _saldoCtrl = SaldoProveedorController();
   final TextEditingController _searchCtrl = TextEditingController();
+  late final UsuarioController _usuarioCtrl;
+  late final ProductoController _productoCtrl;
 
   List<ProductoXml> _todosLosProductos = [];
   List<ProductoXml> _productosFiltrados = [];
@@ -49,6 +52,8 @@ class _GestoPagoViewState extends State<GestoPagoView> {
   @override
   void initState() {
     super.initState();
+    _usuarioCtrl = widget.usuarioController ?? UsuarioController();
+    _productoCtrl = widget.productoController ?? ProductoController();
     _cargarCatalogoInicial();
   }
 
@@ -185,10 +190,16 @@ class _GestoPagoViewState extends State<GestoPagoView> {
   // FLUJOS DE PAGO Y DIÁLOGOS
   // ===========================================================================
 
-  /// Diálogo para procesar Recarga Telefónica (10 dígitos + confirmación + selección de saldo)
+  /// Diálogo para procesar Recarga Telefónica (10 dígitos + confirmación + validación de saldo)
   void _abrirModalRecarga(ProductoXml servicio) {
     final telCtrl = TextEditingController();
     final confirmTelCtrl = TextEditingController();
+    final montoCtrl = TextEditingController(
+      text: servicio.precio > 0 ? servicio.precio.toStringAsFixed(2) : '50.00',
+    );
+    final tarjetaNumCtrl = TextEditingController();
+    final tarjetaExpCtrl = TextEditingController();
+    final tarjetaCvvCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     String metodoPago = 'Saldo con Proveedor';
 
@@ -198,7 +209,16 @@ class _GestoPagoViewState extends State<GestoPagoView> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
+          final montoActual = servicio.precio > 0
+              ? servicio.precio
+              : (double.tryParse(montoCtrl.text.trim()) ?? 50.0);
+          final saldoDisponible = _saldoCtrl.saldo;
+          final saldoAlcanza = saldoDisponible >= montoActual && saldoDisponible > 0;
+
           return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.90,
+            ),
             decoration: const BoxDecoration(
               color: AppTheme.surfaceCard,
               borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -209,119 +229,203 @@ class _GestoPagoViewState extends State<GestoPagoView> {
               right: 20,
               bottom: MediaQuery.of(context).viewInsets.bottom + 20,
             ),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Handle
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryLight,
-                        borderRadius: BorderRadius.circular(2),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryLight,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  Row(
-                    children: [
-                      ServicioLogoWidget(servicio: servicio.servicio, size: 48),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      children: [
+                        ServicioLogoWidget(servicio: servicio.servicio, size: 48),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                servicio.servicio,
+                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textMain),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                servicio.producto,
+                                style: const TextStyle(fontSize: 12, color: AppTheme.primaryPurple, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '\$${montoActual.toStringAsFixed(2)} MXN',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+
+                    // Alerta si no dispone de saldo suficiente
+                    if (!saldoAlcanza)
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.errorColor.withAlpha(120)),
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              servicio.servicio,
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textMain),
+                            const Icon(Icons.warning_amber_rounded, color: AppTheme.errorColor, size: 22),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Saldo insuficiente (\$${saldoDisponible.toStringAsFixed(2)} MXN). Sí o sí debes disponer de dinero para realizar la compra.',
+                                style: const TextStyle(fontSize: 11.5, color: AppTheme.errorColor, fontWeight: FontWeight.bold),
+                              ),
                             ),
-                            Text(
-                              servicio.producto,
-                              style: const TextStyle(fontSize: 12, color: AppTheme.primaryPurple, fontWeight: FontWeight.bold),
+                            TextButton(
+                              onPressed: () {
+                                ScaffoldMessenger.of(this.context).clearSnackBars();
+                                Navigator.pop(ctx);
+                                RecargarSaldoDialog.show(
+                                  this.context,
+                                  controller: _saldoCtrl,
+                                  usuarioEmail: widget.authController.currentUser?.correo ?? '',
+                                );
+                              },
+                              child: const Text('Fondear', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
                             ),
                           ],
                         ),
                       ),
-                      Text(
-                        '\$${servicio.precio.toStringAsFixed(2)} MXN',
-                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+
+                    // Teléfono a 10 dígitos (Solo dígitos numéricos permitidos)
+                    TextFormField(
+                      controller: telCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Número Telefónico (10 dígitos) *',
+                        hintText: 'Ej. 5512345678 (solo números)',
+                        prefixIcon: Icon(Icons.phone_android_rounded, color: AppTheme.primaryPurple),
+                        helperText: 'Exactamente 10 dígitos numéricos sin espacios',
+                      ),
+                      validator: (val) {
+                        final v = val?.trim() ?? '';
+                        if (v.isEmpty) {
+                          return 'El número telefónico es obligatorio';
+                        }
+                        if (!GestoPagoService.validarNumeroTelefonico(v)) {
+                          return 'Ingresa un número válido de 10 dígitos (sin iniciar en 0)';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Confirmar Teléfono (Solo dígitos numéricos permitidos)
+                    TextFormField(
+                      controller: confirmTelCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Confirmar Número Telefónico *',
+                        hintText: 'Repite los 10 dígitos del celular',
+                        prefixIcon: Icon(Icons.verified_user_outlined, color: AppTheme.primaryPurple),
+                      ),
+                      validator: (val) {
+                        final v = val?.trim() ?? '';
+                        if (v.isEmpty) {
+                          return 'Confirma el número telefónico';
+                        }
+                        if (v != telCtrl.text.trim()) {
+                          return 'Los números telefónicos no coinciden';
+                        }
+                        return null;
+                      },
+                    ),
+
+                    if (servicio.precio <= 0) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: montoCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                          LengthLimitingTextInputFormatter(7),
+                        ],
+                        onChanged: (_) => setModalState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Monto de la Recarga (MXN) *',
+                          prefixIcon: Icon(Icons.attach_money_rounded, color: Color(0xFF2E7D32)),
+                        ),
+                        validator: (val) {
+                          final n = double.tryParse(val?.trim() ?? '');
+                          if (n == null || n < 10 || n > 1000) {
+                            return 'El monto de recarga debe ser entre \$10.00 y \$1,000.00 MXN';
+                          }
+                          return null;
+                        },
                       ),
                     ],
-                  ),
-                  const Divider(height: 24),
+                    const SizedBox(height: 14),
 
-                  // Teléfono a 10 dígitos
-                  TextFormField(
-                    controller: telCtrl,
-                    keyboardType: TextInputType.phone,
-                    maxLength: 10,
-                    decoration: const InputDecoration(
-                      labelText: 'Número Celular (10 dígitos)',
-                      hintText: 'Ej. 5512345678',
-                      prefixIcon: Icon(Icons.phone_rounded, color: AppTheme.primaryPurple),
-                      counterText: '',
+                    // Selección de Forma de Pago
+                    _buildSelectorFormaPago(
+                      monto: montoActual,
+                      metodoSeleccionado: metodoPago,
+                      onCambio: (nuevo) => setModalState(() => metodoPago = nuevo),
+                      tarjetaNumCtrl: tarjetaNumCtrl,
+                      tarjetaExpCtrl: tarjetaExpCtrl,
+                      tarjetaCvvCtrl: tarjetaCvvCtrl,
                     ),
-                    validator: (val) {
-                      if (val == null || val.trim().length != 10 || int.tryParse(val.trim()) == null) {
-                        return 'Ingresa un número telefónico válido a 10 dígitos';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 18),
 
-                  // Confirmar Teléfono
-                  TextFormField(
-                    controller: confirmTelCtrl,
-                    keyboardType: TextInputType.phone,
-                    maxLength: 10,
-                    decoration: const InputDecoration(
-                      labelText: 'Confirmar Número Celular',
-                      hintText: 'Vuelve a escribir el número',
-                      prefixIcon: Icon(Icons.check_rounded, color: AppTheme.primaryPurple),
-                      counterText: '',
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: saldoAlcanza ? const Color(0xFF2E7D32) : Colors.grey.shade500,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      icon: const Icon(Icons.send_to_mobile_rounded, color: Colors.white, size: 18),
+                      onPressed: () => _ejecutarPago(
+                        servicio: servicio,
+                        referencia: telCtrl.text.trim(),
+                        monto: montoActual,
+                        metodoPago: metodoPago,
+                        formKey: formKey,
+                        parentContext: ctx,
+                      ),
+                      label: Text(
+                        'Aplicar Recarga de \$${montoActual.toStringAsFixed(2)} MXN',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
                     ),
-                    validator: (val) {
-                      if (val != telCtrl.text) {
-                        return 'Los números de teléfono no coinciden';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Selección de Forma de Pago
-                  _buildSelectorFormaPago(
-                    monto: servicio.precio,
-                    metodoSeleccionado: metodoPago,
-                    onCambio: (nuevo) => setModalState(() => metodoPago = nuevo),
-                  ),
-                  const SizedBox(height: 20),
-
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E7D32),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    onPressed: () => _ejecutarPago(
-                      servicio: servicio,
-                      referencia: telCtrl.text.trim(),
-                      monto: servicio.precio,
-                      metodoPago: metodoPago,
-                      formKey: formKey,
-                      parentContext: ctx,
-                    ),
-                    child: Text(
-                      'Aplicar Recarga de \$${servicio.precio.toStringAsFixed(2)} MXN',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -330,10 +434,15 @@ class _GestoPagoViewState extends State<GestoPagoView> {
     );
   }
 
-  /// Diálogo para procesar Pago de Servicios (CFE, Agua, Gas, etc.) con consulta de adeudo
+  /// Diálogo para procesar Pago de Servicios (CFE, Agua, Gas, etc.) con Referencia y Saldo obligatorios
   void _abrirModalPagoServicio(ProductoXml servicio) {
     final refCtrl = TextEditingController();
-    final montoCtrl = TextEditingController(text: servicio.precio > 0 ? servicio.precio.toStringAsFixed(2) : '348.00');
+    final montoCtrl = TextEditingController(
+      text: servicio.precio > 0 ? servicio.precio.toStringAsFixed(2) : '348.00',
+    );
+    final tarjetaNumCtrl = TextEditingController();
+    final tarjetaExpCtrl = TextEditingController();
+    final tarjetaCvvCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     String metodoPago = 'Saldo con Proveedor';
     bool consultando = false;
@@ -345,7 +454,14 @@ class _GestoPagoViewState extends State<GestoPagoView> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
+          final montoActual = double.tryParse(montoCtrl.text.trim()) ?? 0.0;
+          final saldoDisponible = _saldoCtrl.saldo;
+          final saldoAlcanza = saldoDisponible >= montoActual && saldoDisponible > 0 && montoActual > 0;
+
           return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.90,
+            ),
             decoration: const BoxDecoration(
               color: AppTheme.surfaceCard,
               borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -356,160 +472,239 @@ class _GestoPagoViewState extends State<GestoPagoView> {
               right: 20,
               bottom: MediaQuery.of(context).viewInsets.bottom + 20,
             ),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryLight,
-                        borderRadius: BorderRadius.circular(2),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryLight,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  Row(
-                    children: [
-                      ServicioLogoWidget(servicio: servicio.servicio, size: 48),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      children: [
+                        ServicioLogoWidget(servicio: servicio.servicio, size: 48),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                servicio.servicio,
+                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textMain),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                servicio.producto,
+                                style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+
+                    // Alerta si no dispone de saldo suficiente
+                    if (!saldoAlcanza && montoActual > 0)
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.errorColor.withAlpha(120)),
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              servicio.servicio,
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textMain),
+                            const Icon(Icons.warning_amber_rounded, color: AppTheme.errorColor, size: 22),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Saldo disponible insuficiente (\$${saldoDisponible.toStringAsFixed(2)} MXN). Sí o sí debes disponer de dinero para realizar el pago.',
+                                style: const TextStyle(fontSize: 11.5, color: AppTheme.errorColor, fontWeight: FontWeight.bold),
+                              ),
                             ),
-                            Text(
-                              servicio.producto,
-                              style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                            TextButton(
+                              onPressed: () {
+                                ScaffoldMessenger.of(this.context).clearSnackBars();
+                                Navigator.pop(ctx);
+                                RecargarSaldoDialog.show(
+                                  this.context,
+                                  controller: _saldoCtrl,
+                                  usuarioEmail: widget.authController.currentUser?.correo ?? '',
+                                );
+                              },
+                              child: const Text('Fondear', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                  const Divider(height: 20),
 
-                  // Número de Servicio / Contrato / Código de barras
-                  TextFormField(
-                    controller: refCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Número de Servicio / Contrato / Referencia',
-                      hintText: 'Ej. 012345678901',
-                      prefixIcon: const Icon(Icons.qr_code_rounded, color: Color(0xFF2E7D32)),
-                      suffixIcon: IconButton(
-                        icon: consultando
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.search_rounded, color: Color(0xFF2E7D32)),
-                        tooltip: 'Consultar Adeudo en Línea',
-                        onPressed: () async {
-                          if (refCtrl.text.trim().length < 4) return;
-                          setModalState(() => consultando = true);
-                          final res = await GestoPagoService.consultarReferencia(servicio, refCtrl.text.trim());
-                          setModalState(() {
-                            consultando = false;
-                            resultadoConsulta = res;
-                            if (res['exito'] == true) {
-                              montoCtrl.text = (res['monto'] as double).toStringAsFixed(2);
+                    // 1. Referencia / Número de Servicio / Contrato (Obligatorio y restringido)
+                    TextFormField(
+                      controller: refCtrl,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                        LengthLimitingTextInputFormatter(30),
+                      ],
+                      decoration: InputDecoration(
+                        labelText: 'Referencia / Número de Servicio o Contrato *',
+                        hintText: 'Ej. 012345678901 (mín. 6 caracteres)',
+                        prefixIcon: const Icon(Icons.qr_code_rounded, color: Color(0xFF2E7D32)),
+                        suffixIcon: IconButton(
+                          icon: consultando
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.search_rounded, color: Color(0xFF2E7D32)),
+                          tooltip: 'Consultar Adeudo en API de Pruebas',
+                          onPressed: () async {
+                            if (refCtrl.text.trim().length < 4) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Ingresa al menos 4 caracteres de referencia para consultar en la API de pruebas.'),
+                                  backgroundColor: AppTheme.errorColor,
+                                ),
+                              );
+                              return;
                             }
-                          });
-                        },
+                            setModalState(() => consultando = true);
+                            final res = await GestoPagoService.consultarReferencia(servicio, refCtrl.text.trim());
+                            setModalState(() {
+                              consultando = false;
+                              resultadoConsulta = res;
+                              if (res['exito'] == true) {
+                                montoCtrl.text = (res['monto'] as double).toStringAsFixed(2);
+                              }
+                            });
+                          },
+                        ),
                       ),
+                      validator: (val) {
+                        final v = val?.trim() ?? '';
+                        if (v.isEmpty) {
+                          return 'La referencia es obligatoria para realizar el pago';
+                        }
+                        if (v.length < 6) {
+                          return 'La referencia debe tener al menos 6 dígitos o caracteres';
+                        }
+                        return null;
+                      },
                     ),
-                    validator: (val) {
-                      if (val == null || val.trim().length < 4) {
-                        return 'Ingresa una referencia válida';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 12),
 
-                  // Cuadro de Consulta de Adeudo
-                  if (resultadoConsulta != null && resultadoConsulta!['exito'] == true)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F8E9),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFC8E6C9)),
+                    // Cuadro de Consulta de Adeudo en API de Pruebas
+                    if (resultadoConsulta != null && resultadoConsulta!['exito'] == true)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F8E9),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFC8E6C9)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${resultadoConsulta!['titularSimulado']}',
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Vence: ${resultadoConsulta!['fechaVencimiento']}',
+                                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Subtotal: \$${resultadoConsulta!['monto']} + Comisión: \$${resultadoConsulta!['comision']} MXN',
+                              style: const TextStyle(fontSize: 11.5, color: Colors.black87),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                '${resultadoConsulta!['titularSimulado']}',
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
-                              ),
-                              Text(
-                                'Vence: ${resultadoConsulta!['fechaVencimiento']}',
-                                style: const TextStyle(fontSize: 11, color: Colors.black54),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Subtotal: \$${resultadoConsulta!['monto']} + Comisión GestoPago: \$${resultadoConsulta!['comision']} MXN',
-                            style: const TextStyle(fontSize: 11.5, color: Colors.black87),
-                          ),
-                        ],
+
+                    // 3. Monto a Pagar (Solo números y hasta 2 decimales)
+                    TextFormField(
+                      controller: montoCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                      onChanged: (_) => setModalState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Monto a Pagar (MXN) *',
+                        prefixIcon: Icon(Icons.attach_money_rounded, color: Color(0xFF2E7D32)),
                       ),
+                      validator: (val) {
+                        final n = double.tryParse(val?.trim() ?? '');
+                        if (n == null || n <= 0) {
+                          return 'Ingresa un monto válido mayor a \$0.00';
+                        }
+                        if (n < 10.0) {
+                          return 'El monto mínimo de pago es de \$10.00 MXN';
+                        }
+                        if (n > 50000.0) {
+                          return 'El monto máximo permitido por operación es \$50,000.00 MXN';
+                        }
+                        return null;
+                      },
                     ),
+                    const SizedBox(height: 14),
 
-                  // Monto a Pagar
-                  TextFormField(
-                    controller: montoCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Monto a Pagar (MXN)',
-                      prefixIcon: Icon(Icons.attach_money_rounded, color: Color(0xFF2E7D32)),
+                    // Selección de Forma de Pago
+                    _buildSelectorFormaPago(
+                      monto: montoActual > 0 ? montoActual : 100.0,
+                      metodoSeleccionado: metodoPago,
+                      onCambio: (nuevo) => setModalState(() => metodoPago = nuevo),
+                      tarjetaNumCtrl: tarjetaNumCtrl,
+                      tarjetaExpCtrl: tarjetaExpCtrl,
+                      tarjetaCvvCtrl: tarjetaCvvCtrl,
                     ),
-                    validator: (val) {
-                      final n = double.tryParse(val ?? '');
-                      if (n == null || n <= 0) return 'Ingresa un monto válido';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 14),
+                    const SizedBox(height: 18),
 
-                  // Selección de Forma de Pago
-                  _buildSelectorFormaPago(
-                    monto: double.tryParse(montoCtrl.text) ?? 100.0,
-                    metodoSeleccionado: metodoPago,
-                    onCambio: (nuevo) => setModalState(() => metodoPago = nuevo),
-                  ),
-                  const SizedBox(height: 18),
-
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E7D32),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: saldoAlcanza ? const Color(0xFF2E7D32) : Colors.grey.shade500,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      icon: const Icon(Icons.verified_rounded, color: Colors.white, size: 18),
+                      onPressed: () {
+                        final monto = double.tryParse(montoCtrl.text.trim()) ?? 0.0;
+                        _ejecutarPago(
+                          servicio: servicio,
+                          referencia: refCtrl.text.trim(),
+                          monto: monto,
+                          metodoPago: metodoPago,
+                          formKey: formKey,
+                          parentContext: ctx,
+                        );
+                      },
+                      label: const Text('Confirmar y Pagar Recibo', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
-                    onPressed: () {
-                      final monto = double.tryParse(montoCtrl.text.trim()) ?? 0.0;
-                      _ejecutarPago(
-                        servicio: servicio,
-                        referencia: refCtrl.text.trim(),
-                        monto: monto,
-                        metodoPago: metodoPago,
-                        formKey: formKey,
-                        parentContext: ctx,
-                      );
-                    },
-                    child: const Text('Confirmar y Pagar Recibo', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -518,9 +713,12 @@ class _GestoPagoViewState extends State<GestoPagoView> {
     );
   }
 
-  /// Diálogo para procesar Tarjetas Electrónicas y Pines Digitales
+  /// Diálogo para procesar Tarjetas Electrónicas y Pines Digitales con Referencia y Saldo obligatorios
   void _abrirModalTarjetaDigital(ProductoXml servicio) {
     final emailCtrl = TextEditingController(text: widget.authController.currentUser?.correo ?? '');
+    final tarjetaNumCtrl = TextEditingController();
+    final tarjetaExpCtrl = TextEditingController();
+    final tarjetaCvvCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     String metodoPago = 'Saldo con Proveedor';
 
@@ -530,7 +728,14 @@ class _GestoPagoViewState extends State<GestoPagoView> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
+          final montoActual = servicio.precio > 0 ? servicio.precio : 100.0;
+          final saldoDisponible = _saldoCtrl.saldo;
+          final saldoAlcanza = saldoDisponible >= montoActual && saldoDisponible > 0;
+
           return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.90,
+            ),
             decoration: const BoxDecoration(
               color: AppTheme.surfaceCard,
               borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -541,97 +746,149 @@ class _GestoPagoViewState extends State<GestoPagoView> {
               right: 20,
               bottom: MediaQuery.of(context).viewInsets.bottom + 20,
             ),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryLight,
-                        borderRadius: BorderRadius.circular(2),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryLight,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  Row(
-                    children: [
-                      ServicioLogoWidget(servicio: servicio.servicio, size: 48),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      children: [
+                        ServicioLogoWidget(servicio: servicio.servicio, size: 48),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                servicio.servicio,
+                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textMain),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                servicio.producto,
+                                style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '\$${montoActual.toStringAsFixed(2)} MXN',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+
+                    // Alerta si no dispone de saldo suficiente
+                    if (!saldoAlcanza)
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.errorColor.withAlpha(120)),
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              servicio.servicio,
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppTheme.textMain),
+                            const Icon(Icons.warning_amber_rounded, color: AppTheme.errorColor, size: 22),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Saldo insuficiente (\$${saldoDisponible.toStringAsFixed(2)} MXN). Sí o sí debes disponer de dinero para realizar la compra.',
+                                style: const TextStyle(fontSize: 11.5, color: AppTheme.errorColor, fontWeight: FontWeight.bold),
+                              ),
                             ),
-                            Text(
-                              servicio.producto,
-                              style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.bold),
+                            TextButton(
+                              onPressed: () {
+                                ScaffoldMessenger.of(this.context).clearSnackBars();
+                                Navigator.pop(ctx);
+                                RecargarSaldoDialog.show(
+                                  this.context,
+                                  controller: _saldoCtrl,
+                                  usuarioEmail: widget.authController.currentUser?.correo ?? '',
+                                );
+                              },
+                              child: const Text('Fondear', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
                             ),
                           ],
                         ),
                       ),
-                      Text(
-                        '\$${servicio.precio.toStringAsFixed(2)} MXN',
-                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+
+                    // Correo destino / Referencia para entrega del PIN
+                    TextFormField(
+                      controller: emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                        LengthLimitingTextInputFormatter(60),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Referencia / Correo para Entrega del PIN *',
+                        hintText: 'correo@ejemplo.com',
+                        prefixIcon: Icon(Icons.email_outlined, color: Colors.orange),
                       ),
-                    ],
-                  ),
-                  const Divider(height: 20),
+                      validator: (val) {
+                        final v = val?.trim() ?? '';
+                        if (v.isEmpty || !RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$').hasMatch(v)) {
+                          return 'Ingresa un correo electrónico válido como referencia';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
 
-                  // Correo destino para entrega del PIN
-                  TextFormField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Correo Electrónico para Entrega del PIN',
-                      hintText: 'correo@ejemplo.com',
-                      prefixIcon: Icon(Icons.email_outlined, color: Colors.orange),
+                    // Selección de Forma de Pago
+                    _buildSelectorFormaPago(
+                      monto: montoActual,
+                      metodoSeleccionado: metodoPago,
+                      onCambio: (nuevo) => setModalState(() => metodoPago = nuevo),
+                      tarjetaNumCtrl: tarjetaNumCtrl,
+                      tarjetaExpCtrl: tarjetaExpCtrl,
+                      tarjetaCvvCtrl: tarjetaCvvCtrl,
                     ),
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty || !val.contains('@')) {
-                        return 'Ingresa un correo electrónico válido';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 14),
+                    const SizedBox(height: 20),
 
-                  // Selección de Forma de Pago
-                  _buildSelectorFormaPago(
-                    monto: servicio.precio,
-                    metodoSeleccionado: metodoPago,
-                    onCambio: (nuevo) => setModalState(() => metodoPago = nuevo),
-                  ),
-                  const SizedBox(height: 20),
-
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E7D32),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: saldoAlcanza ? const Color(0xFF2E7D32) : Colors.grey.shade500,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      icon: const Icon(Icons.card_giftcard_rounded, color: Colors.white, size: 18),
+                      onPressed: () => _ejecutarPago(
+                        servicio: servicio,
+                        referencia: emailCtrl.text.trim(),
+                        monto: montoActual,
+                        metodoPago: metodoPago,
+                        formKey: formKey,
+                        parentContext: ctx,
+                        correoDestino: emailCtrl.text.trim(),
+                      ),
+                      label: Text(
+                        'Emitir Tarjeta por \$${montoActual.toStringAsFixed(2)} MXN',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
                     ),
-                    onPressed: () => _ejecutarPago(
-                      servicio: servicio,
-                      referencia: emailCtrl.text.trim(),
-                      monto: servicio.precio,
-                      metodoPago: metodoPago,
-                      formKey: formKey,
-                      parentContext: ctx,
-                      correoDestino: emailCtrl.text.trim(),
-                    ),
-                    child: Text(
-                      'Emitir Tarjeta por \$${servicio.precio.toStringAsFixed(2)} MXN',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -640,14 +897,17 @@ class _GestoPagoViewState extends State<GestoPagoView> {
     );
   }
 
-  /// Selector reusable de método de pago (Saldo con Proveedor vs PayPal vs Tarjeta)
+  /// Selector reusable de método de pago con campos restringidos de tarjeta y validación de saldo
   Widget _buildSelectorFormaPago({
     required double monto,
     required String metodoSeleccionado,
     required Function(String) onCambio,
+    TextEditingController? tarjetaNumCtrl,
+    TextEditingController? tarjetaExpCtrl,
+    TextEditingController? tarjetaCvvCtrl,
   }) {
     final saldoDisponible = _saldoCtrl.saldo;
-    final saldoAlcanza = saldoDisponible >= monto;
+    final saldoAlcanza = saldoDisponible >= monto && saldoDisponible > 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -660,7 +920,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
 
         // Opción 1: Saldo con Proveedor
         InkWell(
-          onTap: saldoAlcanza ? () => onCambio('Saldo con Proveedor') : null,
+          onTap: () => onCambio('Saldo con Proveedor'),
           borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: const EdgeInsets.all(12),
@@ -681,7 +941,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
               children: [
                 Icon(
                   Icons.account_balance_wallet_rounded,
-                  color: saldoAlcanza ? const Color(0xFF2E7D32) : Colors.grey,
+                  color: saldoAlcanza ? const Color(0xFF2E7D32) : AppTheme.errorColor,
                   size: 22,
                 ),
                 const SizedBox(width: 10),
@@ -689,20 +949,22 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 6,
+                        runSpacing: 2,
                         children: [
                           const Text(
                             'Saldo con Proveedor GestoPago',
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                           ),
-                          const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: const Color(0xFFC8E6C9),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text('Sin comisiones', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20))),
+                            child: const Text('API Pruebas', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20))),
                           ),
                         ],
                       ),
@@ -724,7 +986,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
           ),
         ),
 
-        // Opción 2: PayPal
+        // Opción 2: PayPal In-App
         InkWell(
           onTap: () => onCambio('PayPal'),
           borderRadius: BorderRadius.circular(12),
@@ -756,12 +1018,13 @@ class _GestoPagoViewState extends State<GestoPagoView> {
           ),
         ),
 
-        // Opción 3: Tarjeta o Efectivo
+        // Opción 3: Tarjeta de Crédito / Débito
         InkWell(
           onTap: () => onCambio('Tarjeta Bancaria / Efectivo'),
           borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 6),
             decoration: BoxDecoration(
               color: metodoSeleccionado == 'Tarjeta Bancaria / Efectivo'
                   ? AppTheme.primaryExtraLight
@@ -780,7 +1043,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                 const SizedBox(width: 10),
                 const Expanded(
                   child: Text(
-                    'Tarjeta Bancaria o Efectivo en Mostrador',
+                    'Tarjeta de Crédito / Débito',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                 ),
@@ -790,11 +1053,141 @@ class _GestoPagoViewState extends State<GestoPagoView> {
             ),
           ),
         ),
+
+        // Campos restringidos de Tarjeta cuando se selecciona Tarjeta de Crédito / Débito
+        if (metodoSeleccionado == 'Tarjeta Bancaria / Efectivo' &&
+            tarjetaNumCtrl != null &&
+            tarjetaExpCtrl != null &&
+            tarjetaCvvCtrl != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryExtraLight.withAlpha(120),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.primaryLight),
+            ),
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: tarjetaNumCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(16),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Número de Tarjeta (16 dígitos) *',
+                    hintText: '4152313245678901',
+                    prefixIcon: Icon(Icons.credit_card_rounded, size: 18),
+                    isDense: true,
+                  ),
+                  validator: (val) {
+                    if (metodoSeleccionado != 'Tarjeta Bancaria / Efectivo') return null;
+                    if (val == null || val.trim().length != 16) {
+                      return 'Ingresa los 16 dígitos numéricos de la tarjeta';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: tarjetaExpCtrl,
+                        keyboardType: TextInputType.datetime,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9/]')),
+                          LengthLimitingTextInputFormatter(5),
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'Vencimiento (MM/AA) *',
+                          hintText: '08/28',
+                          isDense: true,
+                        ),
+                        validator: (val) {
+                          if (metodoSeleccionado != 'Tarjeta Bancaria / Efectivo') return null;
+                          final v = val?.trim() ?? '';
+                          if (!RegExp(r'^(0[1-9]|1[0-2])\/\d{2}$').hasMatch(v)) {
+                            return 'Formato MM/AA';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: tarjetaCvvCtrl,
+                        keyboardType: TextInputType.number,
+                        obscureText: true,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(4),
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'CVV (3-4 díg.) *',
+                          hintText: '123',
+                          isDense: true,
+                        ),
+                        validator: (val) {
+                          if (metodoSeleccionado != 'Tarjeta Bancaria / Efectivo') return null;
+                          final v = val?.trim() ?? '';
+                          if (v.length < 3 || v.length > 4) {
+                            return 'CVV de 3 o 4 dígitos';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // Opción 4: Apple Pay / Google Wallet
+        InkWell(
+          onTap: () => onCambio('Apple Pay / Google Wallet'),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(top: 6),
+            decoration: BoxDecoration(
+              color: metodoSeleccionado == 'Apple Pay / Google Wallet'
+                  ? const Color(0xFFEDE7F6)
+                  : AppTheme.inputFill,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: metodoSeleccionado == 'Apple Pay / Google Wallet'
+                    ? Colors.black87
+                    : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.contactless_rounded, color: Colors.black87, size: 22),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Apple Pay / Google Wallet',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+                if (metodoSeleccionado == 'Apple Pay / Google Wallet')
+                  const Icon(Icons.check_circle_rounded, color: Colors.black87, size: 18),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  /// Ejecución de la transacción
+  /// Ejecución de la transacción validando formulario, referencia y disponibilidad de saldo
   void _ejecutarPago({
     required ProductoXml servicio,
     required String referencia,
@@ -805,6 +1198,22 @@ class _GestoPagoViewState extends State<GestoPagoView> {
     String? correoDestino,
   }) async {
     if (!formKey.currentState!.validate()) return;
+
+    // Validación obligatoria: Sí o sí debe disponer de dinero/saldo para realizar la compra
+    if (_saldoCtrl.saldo <= 0 || _saldoCtrl.saldo < monto) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Saldo insuficiente (\$${_saldoCtrl.saldo.toStringAsFixed(2)} MXN). Sí o sí debes disponer de dinero suficiente (\$${monto.toStringAsFixed(2)} MXN) para realizar la compra.',
+            ),
+            backgroundColor: AppTheme.errorColor,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      return;
+    }
 
     if (metodoPago == 'PayPal') {
       PayPalCheckoutDialog.show(
@@ -818,7 +1227,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
             referencia: referencia,
             monto: monto,
             metodoPago: 'PayPal ($txId)',
-            usarSaldoProveedor: false,
+            usarSaldoProveedor: true,
             correoDestino: correoDestino,
           );
         },
@@ -828,13 +1237,12 @@ class _GestoPagoViewState extends State<GestoPagoView> {
 
     Navigator.pop(parentContext);
 
-    final usarSaldo = metodoPago == 'Saldo con Proveedor';
     await _completarTransaccion(
       servicio: servicio,
       referencia: referencia,
       monto: monto,
       metodoPago: metodoPago,
-      usarSaldoProveedor: usarSaldo,
+      usarSaldoProveedor: true,
       correoDestino: correoDestino,
     );
   }
@@ -860,8 +1268,8 @@ class _GestoPagoViewState extends State<GestoPagoView> {
               children: [
                 CircularProgressIndicator(color: Color(0xFF2E7D32)),
                 SizedBox(height: 16),
-                Text('Conectando con GestoPago API...', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('Autorizando transacción y emitiendo folio', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('Conectando con API de Pruebas GestoPago...', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('Procesando pago con el proveedor', style: TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
           ),
@@ -882,12 +1290,15 @@ class _GestoPagoViewState extends State<GestoPagoView> {
 
     if (result['exito'] != true) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['mensaje'] as String? ?? 'Error al procesar la operación'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(result['mensaje'] as String? ?? 'Error al procesar la operación'),
+              backgroundColor: AppTheme.errorColor,
+              duration: const Duration(seconds: 2),
+            ),
+          );
       }
       return;
     }
@@ -900,7 +1311,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
       usuarioCorreo: curUser?.correo ?? 'cliente@ejemplo.com',
       total: monto,
       fecha: DateTime.now().toString().split('.')[0],
-      metodoPago: 'GestoPago: $metodoPago (${result['folioGestoPago']})',
+      metodoPago: 'GestoPago: $metodoPago (Folio: ${result['folioGestoPago']} | Ref: $referencia)',
       estado: 'Aplicado',
       items: [
         {
@@ -912,7 +1323,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
           if (result['pinDigital'] != null) 'pinDigital': result['pinDigital'],
         }
       ],
-      direccionEntrega: 'Transacción Digital GestoPago (Ref: $referencia)',
+      direccionEntrega: 'Transacción Digital GestoPago (Ref: $referencia • Folio: ${result['folioGestoPago']})',
     );
 
     if (widget.compraController != null) {
@@ -937,8 +1348,8 @@ class _GestoPagoViewState extends State<GestoPagoView> {
       backgroundColor: AppTheme.getScaffoldBg(context),
       drawer: AppDrawer(
         authController: widget.authController,
-        usuarioController: widget.usuarioController ?? UsuarioController(),
-        productoController: widget.productoController ?? ProductoController(),
+        usuarioController: _usuarioCtrl,
+        productoController: _productoCtrl,
         compraController: widget.compraController,
         themeController: widget.themeController,
         currentRoute: 'gestopago',
@@ -948,7 +1359,11 @@ class _GestoPagoViewState extends State<GestoPagoView> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
         ),
         title: const Text(
           'Productos (XML)',
@@ -1000,20 +1415,32 @@ class _GestoPagoViewState extends State<GestoPagoView> {
           ? Column(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   color: isDark ? const Color(0xFF282533) : AppTheme.primaryExtraLight,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        '💼 Gestión de Saldo Proveedor',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      const Expanded(
+                        child: Text(
+                          '💼 Gestión de Saldo Proveedor',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       TextButton.icon(
-                        style: TextButton.styleFrom(foregroundColor: AppTheme.primaryPurple),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppTheme.primaryPurple,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                         onPressed: () => setState(() => _filtroCategoria = 'todos'),
-                        icon: const Icon(Icons.arrow_back_rounded, size: 16),
-                        label: const Text('Volver al Catálogo XML'),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 15),
+                        label: const Text(
+                          'Volver al Catálogo',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ],
                   ),
@@ -1176,7 +1603,9 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                               padding: const EdgeInsets.only(bottom: 24),
                               itemCount: _productosFiltrados.length,
                               itemBuilder: (context, index) {
-                                return _fila(_productosFiltrados[index], isDark);
+                                return RepaintBoundary(
+                                  child: _fila(_productosFiltrados[index], isDark),
+                                );
                               },
                             ),
                 ),
@@ -1333,7 +1762,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
             children: [
               // Gran Tarjeta de Saldo y Ganancias
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF1B5E20), Color(0xFF388E3C)],
@@ -1353,29 +1782,40 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Bolsa de Saldo con Proveedor',
-                          style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                        const Expanded(
+                          child: Text(
+                            'Bolsa de Saldo con Proveedor',
+                            style: TextStyle(color: Colors.white70, fontSize: 12.5, fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: Colors.white24,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Text('Modo Simulado / Live', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                          child: const Text(
+                            'API Pruebas / Live',
+                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Text(
-                      '\$${_saldoCtrl.saldo.toStringAsFixed(2)} MXN',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '\$${_saldoCtrl.saldo.toStringAsFixed(2)} MXN',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -1383,30 +1823,42 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                     const SizedBox(height: 14),
 
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Ganancias por Comisión:',
-                              style: TextStyle(color: Colors.white70, fontSize: 11),
-                            ),
-                            Text(
-                              '+\$${_saldoCtrl.comisionesGanadas.toStringAsFixed(2)} MXN',
-                              style: const TextStyle(color: Color(0xFFC8E6C9), fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                          ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Ganancias por Comisión:',
+                                style: TextStyle(color: Colors.white70, fontSize: 11),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                '+\$${_saldoCtrl.comisionesGanadas.toStringAsFixed(2)} MXN',
+                                style: const TextStyle(color: Color(0xFFC8E6C9), fontSize: 15, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: const Color(0xFF1B5E20),
                             elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          icon: const Icon(Icons.add_circle_rounded, size: 18),
-                          label: const Text('Fondeo / Recargar', style: TextStyle(fontWeight: FontWeight.bold)),
+                          icon: const Icon(Icons.add_circle_rounded, size: 17),
+                          label: const Text(
+                            'Fondeo / Recargar',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+                          ),
                           onPressed: () {
                             RecargarSaldoDialog.show(
                               context,
@@ -1422,38 +1874,64 @@ class _GestoPagoViewState extends State<GestoPagoView> {
               ),
               const SizedBox(height: 14),
 
-              // Botones de Acción de Pruebas
-              Row(
+              // Botones de Acción de Pruebas (Reiniciar Saldo, Vaciar Saldo para probar bloqueo, Sync API)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      icon: const Icon(Icons.refresh_rounded, size: 18),
-                      label: const Text('Reiniciar a \$2,500.00'),
-                      onPressed: () async {
-                        await _saldoCtrl.reiniciarSaldoPruebas();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Bolsa de saldo restablecida para pruebas')),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.refresh_rounded, size: 17),
+                    label: const Text('Reiniciar a \$2,500.00', style: TextStyle(fontSize: 12)),
+                    onPressed: () async {
+                      await _saldoCtrl.reiniciarSaldoPruebas();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context)
+                          ..clearSnackBars()
+                          ..showSnackBar(
+                            const SnackBar(
+                              content: Text('Bolsa de saldo restablecida a \$2,500.00 MXN para pruebas'),
+                              duration: Duration(seconds: 2),
+                            ),
                           );
-                        }
-                      },
-                    ),
+                      }
+                    },
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      icon: const Icon(Icons.sync_rounded, size: 18),
-                      label: const Text('Sync API Online'),
-                      onPressed: _sincronizarConApiGestoPago,
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.errorColor,
+                      side: const BorderSide(color: AppTheme.errorColor),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
+                    icon: const Icon(Icons.money_off_csred_rounded, size: 17),
+                    label: const Text('Simular Saldo \$0.00', style: TextStyle(fontSize: 12)),
+                    onPressed: () async {
+                      await _saldoCtrl.reiniciarSaldoPruebas(nuevoSaldo: 0.0);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context)
+                          ..clearSnackBars()
+                          ..showSnackBar(
+                            const SnackBar(
+                              content: Text('Saldo puesto en \$0.00 MXN para validar restricción de compras sin fondos.'),
+                              backgroundColor: AppTheme.errorColor,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                      }
+                    },
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.sync_rounded, size: 17),
+                    label: const Text('Sync API Pruebas', style: TextStyle(fontSize: 12)),
+                    onPressed: _sincronizarConApiGestoPago,
                   ),
                 ],
               ),

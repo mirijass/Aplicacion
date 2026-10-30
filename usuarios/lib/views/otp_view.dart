@@ -74,6 +74,7 @@ class _OtpViewState extends State<OtpView> {
   }
 
   void _verificarOtp() {
+    if (_isVerifying) return;
     final codigoIngresado = _controllers.map((c) => c.text.trim()).join();
     if (codigoIngresado.length < 6) {
       setState(() => _errorMsg = 'Ingresa el código completo de 6 dígitos');
@@ -91,7 +92,7 @@ class _OtpViewState extends State<OtpView> {
       widget.productoController.setActiveUser(widget.authController.currentUser);
       widget.compraController.cargarCompras(usuarioLogeado: widget.authController.currentUser);
 
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (context) => ProductosView(
@@ -102,6 +103,7 @@ class _OtpViewState extends State<OtpView> {
             themeController: widget.themeController,
           ),
         ),
+        (route) => false,
       );
     } else {
       setState(() {

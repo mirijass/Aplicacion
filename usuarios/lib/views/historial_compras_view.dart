@@ -139,9 +139,13 @@ class _HistorialComprasViewState extends State<HistorialComprasView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      esAdmin ? 'Historial de Compras de Todos los Usuarios' : 'Historial de Pedidos',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textMain),
+                    Expanded(
+                      child: Text(
+                        esAdmin ? 'Historial de Compras de Todos los Usuarios' : 'Historial de Pedidos',
+                        style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: AppTheme.textMain),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.refresh_rounded, color: AppTheme.primaryPurple),
@@ -183,6 +187,17 @@ class _HistorialComprasViewState extends State<HistorialComprasView> {
   }
 
   Widget _buildCompraCard(Compra compra) {
+    String? refExtra;
+    String? folioExtra;
+    for (final it in compra.items) {
+      if (it['referencia'] != null && it['referencia'].toString().isNotEmpty) {
+        refExtra = it['referencia'].toString();
+      }
+      if (it['folioGestoPago'] != null && it['folioGestoPago'].toString().isNotEmpty) {
+        folioExtra = it['folioGestoPago'].toString();
+      }
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -195,12 +210,18 @@ class _HistorialComprasViewState extends State<HistorialComprasView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Folio #${compra.id ?? 1}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.textMain),
+              Expanded(
+                child: Text(
+                  folioExtra != null
+                      ? 'Folio #${compra.id ?? 1} ($folioExtra)'
+                      : 'Folio #${compra.id ?? 1}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: AppTheme.textMain),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -215,30 +236,62 @@ class _HistorialComprasViewState extends State<HistorialComprasView> {
             ],
           ),
           const SizedBox(height: 6),
-          Text('Cliente: ${compra.usuarioNombre} (${compra.usuarioCorreo})', style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-          Text('Fecha: ${compra.fecha}', style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted)),
+          Text(
+            'Cliente: ${compra.usuarioNombre} (${compra.usuarioCorreo})',
+            style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            'Fecha: ${compra.fecha}',
+            style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+          ),
+          Text(
+            'Método: ${compra.metodoPago}',
+            style: const TextStyle(fontSize: 11.5, color: AppTheme.primaryPurple, fontWeight: FontWeight.w600),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (refExtra != null)
+            Text(
+              'Referencia / Teléfono: $refExtra',
+              style: const TextStyle(fontSize: 11.5, color: Color(0xFF2E7D32), fontWeight: FontWeight.w700),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           const Divider(height: 18),
-          
-          // Artículos
+
+          // Artículos (Con Expanded para evitar desbordamiento horizontal en nombres largos)
           Column(
             children: compra.items.map((item) {
               final nombre = item['nombre_product'] ?? item['nombre'] ?? 'Producto';
               final cant = item['cantidad'] ?? 1;
               final precio = double.tryParse(item['precio'].toString()) ?? 0.0;
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
+                padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('• $nombre (x$cant)', style: const TextStyle(fontSize: 12.5)),
-                    Text('\$${(precio * cant).toStringAsFixed(2)} MXN', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    Expanded(
+                      child: Text(
+                        '• $nombre (x$cant)',
+                        style: const TextStyle(fontSize: 12.5),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '\$${(precio * cant).toStringAsFixed(2)} MXN',
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                    ),
                   ],
                 ),
               );
             }).toList(),
           ),
           const SizedBox(height: 12),
-          
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -246,6 +299,7 @@ class _HistorialComprasViewState extends State<HistorialComprasView> {
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 icon: const Icon(Icons.map_rounded, size: 16),
                 label: const Text('Rastrear en Mapa', style: TextStyle(fontSize: 11)),
@@ -258,9 +312,15 @@ class _HistorialComprasViewState extends State<HistorialComprasView> {
                   );
                 },
               ),
-              Text(
-                'Total: \$${compra.total.toStringAsFixed(2)} MXN',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppTheme.deepPurple),
+              const SizedBox(width: 8),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Total: \$${compra.total.toStringAsFixed(2)} MXN',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppTheme.deepPurple),
+                  ),
+                ),
               ),
             ],
           ),

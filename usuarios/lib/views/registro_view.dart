@@ -41,6 +41,7 @@ class _RegistroViewState extends State<RegistroView> {
   final _descController = TextEditingController();
 
   int _selectedRoleId = 3; // Por defecto: 3 (lector / solo de lectura)
+  bool _isSubmitting = false;
 
   final List<Map<String, dynamic>> _roles = [
     {
@@ -90,17 +91,22 @@ class _RegistroViewState extends State<RegistroView> {
   }
 
   void _submitForm() async {
+    if (_isSubmitting || widget.usuarioController.isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
     if (_passController.text != _confirmPassController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Las contraseñas no coinciden'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Las contraseñas no coinciden'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
       return;
     }
+
+    setState(() => _isSubmitting = true);
 
     final nombreCompleto =
         '${_nombresController.text.trim()} ${_apPaternoController.text.trim()} ${_apMaternoController.text.trim()}'.trim();
@@ -136,15 +142,18 @@ class _RegistroViewState extends State<RegistroView> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${widget.usuarioController.successMessage ?? 'Usuario registrado con éxito'}. Se ha enviado el código de verificación.',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                '${widget.usuarioController.successMessage ?? 'Usuario registrado con éxito'}. Se ha enviado el código de verificación.',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              backgroundColor: AppTheme.successColor,
             ),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
+          );
 
         final authCtrl = widget.authController ?? AuthController();
         final prodCtrl = widget.productoController ?? ProductoController();
@@ -165,15 +174,18 @@ class _RegistroViewState extends State<RegistroView> {
         );
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.usuarioController.errorMessage ?? 'Error al registrar',
-            style: const TextStyle(fontWeight: FontWeight.w600),
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.usuarioController.errorMessage ?? 'Error al registrar',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: AppTheme.errorColor,
           ),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+        );
     }
   }
 
@@ -590,17 +602,24 @@ class _RegistroViewState extends State<RegistroView> {
 
                     // Botón de Envío
                     ElevatedButton(
-                      onPressed: widget.usuarioController.isLoading
+                      onPressed: (_isSubmitting || widget.usuarioController.isLoading)
                           ? null
                           : _submitForm,
-                      child: widget.usuarioController.isLoading
-                          ? const SizedBox(
-                              height: 22,
-                              width: 22,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.5,
-                              ),
+                      child: (_isSubmitting || widget.usuarioController.isLoading)
+                          ? const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text('Enviando código...'),
+                              ],
                             )
                           : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,

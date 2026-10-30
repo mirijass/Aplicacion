@@ -42,6 +42,7 @@ class _LoginViewState extends State<LoginView> {
   final _formKey = GlobalKey<FormState>();
   final _identificadorController = TextEditingController();
   final _passController = TextEditingController();
+  bool _isSubmittingLogin = false;
 
   @override
   void dispose() {
@@ -121,7 +122,10 @@ class _LoginViewState extends State<LoginView> {
   }
 
   void _submitLogin() async {
+    if (_isSubmittingLogin || widget.authController.isLoading) return;
     if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmittingLogin = true);
 
     final ok = await widget.authController.login(
       _identificadorController.text,
@@ -143,9 +147,12 @@ class _LoginViewState extends State<LoginView> {
           _identificadorController.text.trim();
 
       // Si es el usuario Admin predeterminado (juan@gmail.com), ingresar directamente sin OTP
-      final esAdminPredeterminado = (correoUser == 'juan@gmail.com' || _identificadorController.text.trim().toLowerCase() == 'juan@gmail.com' || _identificadorController.text.trim() == 'Juan Pérez');
+      final esAdminPredeterminado = (correoUser == 'juan@gmail.com' ||
+          _identificadorController.text.trim().toLowerCase() == 'juan@gmail.com' ||
+          _identificadorController.text.trim() == 'Juan Pérez');
       if (esAdminPredeterminado) {
-        Navigator.pushReplacement(
+        setState(() => _isSubmittingLogin = false);
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
             builder: (context) => ProductosView(
@@ -156,6 +163,7 @@ class _LoginViewState extends State<LoginView> {
               themeController: widget.themeController,
             ),
           ),
+          (route) => false,
         );
         return;
       }
@@ -165,6 +173,9 @@ class _LoginViewState extends State<LoginView> {
       } catch (e) {
         debugPrint('Aviso de envío de verificación en login: $e');
       }
+
+      if (!mounted) return;
+      setState(() => _isSubmittingLogin = false);
 
       Navigator.push(
         context,
@@ -181,15 +192,18 @@ class _LoginViewState extends State<LoginView> {
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.authController.errorMessage ?? 'Credenciales incorrectas',
-            style: const TextStyle(fontWeight: FontWeight.w600),
+      setState(() => _isSubmittingLogin = false);
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.authController.errorMessage ?? 'Credenciales incorrectas',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: AppTheme.errorColor,
           ),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+        );
     }
   }
 
@@ -364,19 +378,26 @@ class _LoginViewState extends State<LoginView> {
                             ),
                             const SizedBox(height: 12),
                             
-                            // Botón de Iniciar Sesión
+                            // Botón de Iniciar Sesión (Bloqueado mientras valida credenciales o envía OTP)
                             ElevatedButton(
-                              onPressed: widget.authController.isLoading
+                              onPressed: (_isSubmittingLogin || widget.authController.isLoading)
                                   ? null
                                   : _submitLogin,
-                              child: widget.authController.isLoading
-                                  ? const SizedBox(
-                                      height: 22,
-                                      width: 22,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2.5,
-                                      ),
+                              child: (_isSubmittingLogin || widget.authController.isLoading)
+                                  ? const Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2.5,
+                                          ),
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text('Enviando código...'),
+                                      ],
                                     )
                                   : const Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
@@ -560,35 +581,19 @@ class _SocialRegistroModalState extends State<_SocialRegistroModal> {
         Navigator.pop(context);
         widget.usuarioController.cargarUsuarios();
         final prodCtrl = widget.productoController ?? ProductoController();
-        final curUser = widget.authController.currentUser;
-
-        if (curUser != null && curUser.esLector) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => LectorHomeView(
-                authController: widget.authController,
-                usuarioController: widget.usuarioController,
-                productoController: prodCtrl,
-                compraController: widget.compraController,
-                themeController: widget.themeController,
-              ),
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProductosView(
+              authController: widget.authController,
+              usuarioController: widget.usuarioController,
+              productoController: prodCtrl,
+              compraController: widget.compraController,
+              themeController: widget.themeController,
             ),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => UsuariosListView(
-                authController: widget.authController,
-                usuarioController: widget.usuarioController,
-                productoController: prodCtrl,
-                compraController: widget.compraController,
-                themeController: widget.themeController,
-              ),
-            ),
-          );
-        }
+          ),
+          (route) => false,
+        );
         return;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

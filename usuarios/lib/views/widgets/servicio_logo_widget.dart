@@ -176,9 +176,9 @@ class ServicioLogoWidget extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: brandColor.withOpacity(0.12),
+        color: brandColor.withAlpha(30),
         borderRadius: rad,
-        border: Border.all(color: brandColor.withOpacity(0.25), width: 1.2),
+        border: Border.all(color: brandColor.withAlpha(64), width: 1.2),
       ),
       child: Center(
         child: Icon(
@@ -195,14 +195,7 @@ class ServicioLogoWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: rad,
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0E000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.withOpacity(0.18), width: 1),
+        border: Border.all(color: const Color(0x2E9E9E9E), width: 1),
       ),
       child: ClipRRect(
         borderRadius: rad,
@@ -212,18 +205,16 @@ class ServicioLogoWidget extends StatelessWidget {
             logoUrl,
             width: size,
             height: size,
+            cacheWidth: 96,
             fit: BoxFit.contain,
             headers: const {'User-Agent': 'Mozilla/5.0'},
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
               return Center(
-                child: SizedBox(
-                  width: size * 0.4,
-                  height: size * 0.4,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(brandColor),
-                  ),
+                child: Icon(
+                  brandIcon,
+                  color: brandColor.withAlpha(150),
+                  size: iSize * 0.85,
                 ),
               );
             },

@@ -39,13 +39,17 @@ class UsuariosListView extends StatefulWidget {
 class _UsuariosListViewState extends State<UsuariosListView> {
   final TextEditingController _searchCtrl = TextEditingController();
   bool _isTableView = false; // Alternar entre vista de tarjetas y tabla
+  late final ProductoController _prodCtrl;
 
   @override
   void initState() {
     super.initState();
-    // Cargar datos al iniciar
-    widget.usuarioController.cargarUsuarios();
-    widget.productoController?.setActiveUser(widget.authController.currentUser);
+    _prodCtrl = widget.productoController ?? ProductoController();
+    // Cargar datos al iniciar si la lista está vacía
+    if (widget.usuarioController.usuarios.isEmpty) {
+      widget.usuarioController.cargarUsuarios();
+    }
+    _prodCtrl.setActiveUser(widget.authController.currentUser);
   }
 
   @override
@@ -133,18 +137,17 @@ class _UsuariosListViewState extends State<UsuariosListView> {
   @override
   Widget build(BuildContext context) {
     if (widget.authController.esLector) {
-      final prodCtrl = widget.productoController ?? ProductoController();
       return LectorHomeView(
         authController: widget.authController,
         usuarioController: widget.usuarioController,
-        productoController: prodCtrl,
+        productoController: _prodCtrl,
         compraController: widget.compraController,
         themeController: widget.themeController,
       );
     }
 
     final curUser = widget.authController.currentUser;
-    final prodCtrl = widget.productoController ?? ProductoController();
+    final prodCtrl = _prodCtrl;
 
     return Scaffold(
       backgroundColor: AppTheme.getScaffoldBg(context),
@@ -262,15 +265,18 @@ class _UsuariosListViewState extends State<UsuariosListView> {
 
                 // 4. Lista o Tabla de Usuarios
                 if (widget.usuarioController.isLoading)
-                  const SliverFillRemaining(
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        color: AppTheme.primaryPurple,
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 80),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppTheme.primaryPurple,
+                        ),
                       ),
                     ),
                   )
                 else if (widget.usuarioController.usuarios.isEmpty)
-                  SliverFillRemaining(
+                  SliverToBoxAdapter(
                     child: _buildEmptyState(),
                   )
                 else if (_isTableView)

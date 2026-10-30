@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/usuario_controller.dart';
@@ -38,13 +39,21 @@ class ProductosView extends StatefulWidget {
 
 class _ProductosViewState extends State<ProductosView> {
   final TextEditingController _searchCtrl = TextEditingController();
+  late final CompraController _compraCtrl;
+  late final ThemeController _themeCtrl;
+  late final UsuarioController _usuarioCtrl;
 
   @override
   void initState() {
     super.initState();
+    _compraCtrl = widget.compraController ?? CompraController();
+    _themeCtrl = widget.themeController ?? ThemeController();
+    _usuarioCtrl = widget.usuarioController ?? UsuarioController();
     widget.productoController.setActiveUser(widget.authController.currentUser);
-    // Cargar productos locales al iniciar
-    widget.productoController.cargarProductos();
+    // Cargar productos locales al iniciar si aún no están en memoria
+    if (widget.productoController.productos.isEmpty) {
+      widget.productoController.cargarProductos();
+    }
   }
 
   @override
@@ -146,6 +155,10 @@ class _ProductosViewState extends State<ProductosView> {
             TextField(
               controller: quantityCtrl,
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(4),
+              ],
               decoration: const InputDecoration(
                 labelText: 'Cantidad a comprar',
                 prefixIcon: Icon(Icons.numbers_rounded),
@@ -204,13 +217,14 @@ class _ProductosViewState extends State<ProductosView> {
   Widget build(BuildContext context) {
     final curUser = widget.authController.currentUser;
     final esLector = widget.authController.esLector;
-    final compraCtrl = widget.compraController ?? CompraController();
-    final themeCtrl = widget.themeController ?? ThemeController();
+    final compraCtrl = _compraCtrl;
+    final themeCtrl = _themeCtrl;
+    final usrCtrl = _usuarioCtrl;
 
-    final usrCtrl = widget.usuarioController ?? UsuarioController();
-
-    return Scaffold(
-      backgroundColor: AppTheme.getScaffoldBg(context),
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: AppTheme.getScaffoldBg(context),
       drawer: AppDrawer(
         authController: widget.authController,
         usuarioController: usrCtrl,
@@ -400,43 +414,52 @@ class _ProductosViewState extends State<ProductosView> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Colors.white,
-                                child: Text(
-                                  curUser?.iniciales ?? 'U',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    color: AppTheme.deepPurple,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    curUser?.nombre ?? 'Usuario',
+                          Expanded(
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: Colors.white,
+                                  child: Text(
+                                    curUser?.iniciales ?? 'U',
                                     style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.deepPurple,
                                       fontSize: 14,
                                     ),
                                   ),
-                                  Text(
-                                    'Catálogo & Gestión de Productos',
-                                    style: TextStyle(
-                                      color: Colors.white.withAlpha(200),
-                                      fontSize: 11,
-                                    ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        curUser?.nombre ?? 'Usuario',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Catálogo & Gestión de Productos',
+                                        style: TextStyle(
+                                          color: Colors.white.withAlpha(200),
+                                          fontSize: 11,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 8),
                           RoleBadge(
                             rol: curUser?.rolTexto,
                             roleId: curUser?.roleId,
@@ -472,15 +495,18 @@ class _ProductosViewState extends State<ProductosView> {
                   ),
                 ),
 
-                // 3. Contenido de Productos
+                // 3. Contenido de Productos (Usando SliverToBoxAdapter para evitar conflictos de GlobalKey en SliverFillRemaining)
                 if (controller.isLoading)
-                  const SliverFillRemaining(
-                    child: Center(
-                      child: CircularProgressIndicator(color: AppTheme.primaryPurple),
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 80),
+                      child: Center(
+                        child: CircularProgressIndicator(color: AppTheme.primaryPurple),
+                      ),
                     ),
                   )
                 else if (controller.productos.isEmpty)
-                  SliverFillRemaining(
+                  SliverToBoxAdapter(
                     child: _buildEmptyState(),
                   )
                 else
@@ -490,7 +516,9 @@ class _ProductosViewState extends State<ProductosView> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                           final prod = controller.productos[index];
-                          return _buildProductCard(prod);
+                          return RepaintBoundary(
+                            child: _buildProductCard(prod),
+                          );
                         },
                         childCount: controller.productos.length,
                       ),
@@ -501,6 +529,7 @@ class _ProductosViewState extends State<ProductosView> {
           );
         },
       ),
+    ),
     );
   }
 
@@ -635,8 +664,9 @@ class _ProductosViewState extends State<ProductosView> {
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32.0),
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 48.0),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
@@ -653,7 +683,7 @@ class _ProductosViewState extends State<ProductosView> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'No hay productos disponibles',
+              'No se encontraron productos',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -661,10 +691,21 @@ class _ProductosViewState extends State<ProductosView> {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Presiona el botón flotante (+ Nuevo Producto) para registrar tu primer producto.',
+            Text(
+              _searchCtrl.text.isNotEmpty
+                  ? 'No hay coincidencias para "${_searchCtrl.text}".'
+                  : 'Presiona el botón de abajo para recargar el catálogo de productos.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+              style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () {
+                _searchCtrl.clear();
+                widget.productoController.setSearchQuery('');
+              },
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Recargar Catálogo'),
             ),
           ],
         ),

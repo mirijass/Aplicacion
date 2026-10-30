@@ -169,18 +169,22 @@ class AppDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context); // Cerrar menú desplegable
                       if (currentRoute != 'productos') {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ProductosView(
-                              authController: authController,
-                              usuarioController: usuarioController,
-                              productoController: productoController,
-                              compraController: compraController,
-                              themeController: themeController,
+                        if (Navigator.canPop(context)) {
+                          Navigator.popUntil(context, (route) => route.isFirst);
+                        } else {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProductosView(
+                                authController: authController,
+                                usuarioController: usuarioController,
+                                productoController: productoController,
+                                compraController: compraController,
+                                themeController: themeController,
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }
                       }
                     },
                   ),
@@ -215,18 +219,20 @@ class AppDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       if (currentRoute != 'usuarios') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => UsuariosListView(
-                              authController: authController,
-                              usuarioController: usuarioController,
-                              productoController: productoController,
-                              compraController: compraController,
-                              themeController: themeController,
-                            ),
+                        final route = MaterialPageRoute(
+                          builder: (context) => UsuariosListView(
+                            authController: authController,
+                            usuarioController: usuarioController,
+                            productoController: productoController,
+                            compraController: compraController,
+                            themeController: themeController,
                           ),
                         );
+                        if (currentRoute == 'productos') {
+                          Navigator.push(context, route);
+                        } else {
+                          Navigator.pushReplacement(context, route);
+                        }
                       }
                     },
                   ),
@@ -299,18 +305,20 @@ class AppDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       if (currentRoute != 'gestopago') {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => GestoPagoView(
-                              authController: authController,
-                              compraController: compraController,
-                              productoController: productoController,
-                              usuarioController: usuarioController,
-                              themeController: themeController,
-                            ),
+                        final route = MaterialPageRoute(
+                          builder: (context) => GestoPagoView(
+                            authController: authController,
+                            compraController: compraController,
+                            productoController: productoController,
+                            usuarioController: usuarioController,
+                            themeController: themeController,
                           ),
                         );
+                        if (currentRoute == 'productos') {
+                          Navigator.push(context, route);
+                        } else {
+                          Navigator.pushReplacement(context, route);
+                        }
                       }
                     },
                   ),

@@ -68,17 +68,22 @@ class LectorHomeView extends StatelessWidget {
   }
 
   void _abrirProductos(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ProductosView(
-          authController: authController,
-          productoController: productoController,
-          compraController: compraController,
-          themeController: themeController,
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ProductosView(
+            authController: authController,
+            usuarioController: usuarioController,
+            productoController: productoController,
+            compraController: compraController,
+            themeController: themeController,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   void _abrirHistorialCompras(BuildContext context) {
@@ -124,12 +129,16 @@ class LectorHomeView extends StatelessWidget {
 
   Widget _buildBody(BuildContext context) {
     final user = authController.currentUser;
-    productoController.setActiveUser(user);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: AppTheme.getScaffoldBg(context),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: 'Volver al Catálogo',
+          onPressed: () => _abrirProductos(context),
+        ),
         title: Row(
           children: [
             Icon(

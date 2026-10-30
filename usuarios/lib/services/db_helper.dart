@@ -16,6 +16,7 @@ class DBHelper {
 
   Database? _database;
   bool _isWebOrFallback = false;
+  bool _tablesInitialized = false;
 
   // Almacenamiento en memoria para modo Web o fallback
   final List<Rol> _fallbackRoles = [
@@ -81,6 +82,9 @@ class DBHelper {
 
   /// Verificar existencia de tablas y realizar sembrado automático de datos iniciales
   Future<void> _ensureTablesAndSeed(Database db) async {
+    if (_tablesInitialized) return;
+    _tablesInitialized = true;
+
     await db.execute('''
       CREATE TABLE IF NOT EXISTS rol_permiso (
         id INTEGER PRIMARY KEY,
@@ -647,6 +651,10 @@ class DBHelper {
       );
     } else {
       maps = await db.query('producto', orderBy: 'id DESC');
+      if (maps.isEmpty) {
+        await _seedProductos(db);
+        maps = await db.query('producto', orderBy: 'id DESC');
+      }
     }
 
     return maps.map((map) => Producto.fromMap(map)).toList();
