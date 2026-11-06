@@ -52,7 +52,7 @@ class ProductImageWidget extends StatelessWidget {
             width: width,
             height: height,
             fit: fit,
-            errorBuilder: (_, __, ___) => placeholder,
+            errorBuilder: (_, _, _) => placeholder,
           ),
         );
       } catch (_) {

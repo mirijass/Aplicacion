@@ -290,7 +290,7 @@ class _ProductosViewState extends State<ProductosView> {
                 final ok = await widget.productoController.sincronizarOnline(
                   usuarioLogeado: widget.authController.currentUser,
                 );
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(

@@ -60,6 +60,7 @@ class _RecuperarUsuarioDialogState extends State<RecuperarUsuarioDialog> {
           await MailHelper.sendEmail(email, 'Recordatorio de Nombre de Usuario - Mi App', mensaje, htmlContent: html);
         } catch (_) {}
 
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Se ha enviado la información de tu cuenta al correo $email'),

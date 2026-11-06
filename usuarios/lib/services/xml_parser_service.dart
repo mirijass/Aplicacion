@@ -7,19 +7,19 @@ class XmlParserService {
   static final List<ProductoXml> _fallbackCache = [];
   static bool _tableCreated = false;
 
-  /// Procesa una cadena de texto XML, deserializa a objetos Dart y los guarda en SQLite
+  /// Procesa una cadena de texto XML oficial de `getProductList.do`,
+  /// deserializa a objetos Dart y reemplaza la tabla `productos_xml` en SQLite.
   static Future<RespuestaXml> procesarYGuardarXml(String xmlData) async {
-    // 1. Deserializar respuesta XML a objetos Dart
     final respuesta = RespuestaXml.fromXmlString(xmlData);
-
-    // 2. Guardar lista de productos en la tabla 'productos_xml' de SQLite
-    await guardarProductosXmlBatch(respuesta.productos);
-
+    await guardarProductosXmlBatch(respuesta.productos, limpiarAntes: true);
     return respuesta;
   }
 
   /// Guarda una lista de ProductoXml masivamente utilizando Batch en SQLite
-  static Future<void> guardarProductosXmlBatch(List<ProductoXml> productos) async {
+  static Future<void> guardarProductosXmlBatch(
+    List<ProductoXml> productos, {
+    bool limpiarAntes = false,
+  }) async {
     _fallbackCache
       ..clear()
       ..addAll(productos);
@@ -46,6 +46,10 @@ class XmlParserService {
         )
       ''');
       _tableCreated = true;
+    }
+
+    if (limpiarAntes) {
+      await db.delete('productos_xml');
     }
 
     final batch = db.batch();

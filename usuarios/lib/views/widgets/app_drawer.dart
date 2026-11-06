@@ -146,13 +146,11 @@ class AppDrawer extends StatelessWidget {
                 // 1. Catálogo de Productos
                 Container(
                   margin: const EdgeInsets.only(bottom: 4),
-                  decoration: BoxDecoration(
-                    color: currentRoute == 'productos'
+                  child: ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: currentRoute == 'productos'
                         ? (isDark ? const Color(0xFF38314A) : AppTheme.primaryExtraLight)
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
                     leading: Icon(
                       Icons.storefront_rounded,
                       color: currentRoute == 'productos'
@@ -193,13 +191,11 @@ class AppDrawer extends StatelessWidget {
                 // 2. Gestión de Usuarios
                 Container(
                   margin: const EdgeInsets.only(bottom: 4),
-                  decoration: BoxDecoration(
-                    color: currentRoute == 'usuarios'
+                  child: ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: currentRoute == 'usuarios'
                         ? (isDark ? const Color(0xFF38314A) : AppTheme.primaryExtraLight)
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
                     leading: Icon(
                       Icons.people_alt_rounded,
                       color: currentRoute == 'usuarios'
@@ -241,13 +237,11 @@ class AppDrawer extends StatelessWidget {
                 // 3. Historial de Compras
                 Container(
                   margin: const EdgeInsets.only(bottom: 4),
-                  decoration: BoxDecoration(
-                    color: currentRoute == 'compras'
+                  child: ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: currentRoute == 'compras'
                         ? (isDark ? const Color(0xFF38314A) : AppTheme.primaryExtraLight)
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
                     leading: Icon(
                       Icons.receipt_long_rounded,
                       color: currentRoute == 'compras'
@@ -281,13 +275,11 @@ class AppDrawer extends StatelessWidget {
                 // 4. Pago de Servicios GestoPago
                 Container(
                   margin: const EdgeInsets.only(bottom: 4),
-                  decoration: BoxDecoration(
-                    color: currentRoute == 'gestopago'
+                  child: ListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: currentRoute == 'gestopago'
                         ? (isDark ? const Color(0xFF38314A) : AppTheme.primaryExtraLight)
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
                     leading: Icon(
                       Icons.verified_rounded,
                       color: currentRoute == 'gestopago'
@@ -357,7 +349,7 @@ class AppDrawer extends StatelessWidget {
                           style: TextStyle(color: mutedColor, fontSize: 11),
                         ),
                         value: isDarkMode,
-                        activeColor: AppTheme.primaryPurple,
+                        activeThumbColor: AppTheme.primaryPurple,
                         onChanged: (val) {
                           themeController!.toggleTheme(val);
                         },

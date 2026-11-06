@@ -14,7 +14,7 @@ void main() {
                   context,
                   total: 499.0,
                   usuarioEmail: 'test.paypal@ejemplo.com',
-                  onPagoExitoso: (_, __) {},
+                  onPagoExitoso: (_, _) {},
                 );
               },
               child: const Text('Abrir PayPal'),

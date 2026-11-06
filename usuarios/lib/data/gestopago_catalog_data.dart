@@ -5,8 +5,60 @@ import '../models/producto_xml_model.dart';
 class GestoPagoCatalogData {
   static final List<ProductoXml> catalogoCompleto = [
     // =========================================================================
-    // PRODUCTOS DESTACADOS DEL XML (Idénticos al catálogo de GestoPago)
+    // PRODUCTOS OFICIALES DOCUMENTACIÓN POSTMAN GESTOPAGO
     // =========================================================================
+    ProductoXml(
+      idProducto: 582,
+      servicio: 'Telcel',
+      producto: 'Telcel 10',
+      idServicio: 133,
+      idCatTipoServicio: 2,
+      tipoFront: 1,
+      hasDigitoVerificador: false,
+      precio: 10.0,
+      showAyuda: false,
+      tipoReferencia: 'a',
+      legend: 'Atención a clientes Telcel *264 desde tu celular. Conserva tu comprobante.',
+    ),
+    ProductoXml(
+      idProducto: 308,
+      servicio: 'Movistar',
+      producto: 'Movistar Recarga',
+      idServicio: 116,
+      idCatTipoServicio: 1,
+      tipoFront: 1,
+      hasDigitoVerificador: false,
+      precio: 10.0,
+      showAyuda: false,
+      tipoReferencia: 'a',
+      legend: 'Atención a clientes Movistar *611. Conserva tu comprobante.',
+    ),
+    ProductoXml(
+      idProducto: 205,
+      servicio: 'Telmex',
+      producto: 'Pago de Recibo Telmex',
+      idServicio: 76,
+      idCatTipoServicio: 5,
+      tipoFront: 2,
+      hasDigitoVerificador: false,
+      precio: 10.0,
+      showAyuda: false,
+      tipoReferencia: 'b',
+      legend: 'Para aclaraciones comunícate al 800 123 0000.',
+    ),
+    ProductoXml(
+      idProducto: 7030,
+      servicio: 'Netflix',
+      producto: 'Tarjeta de Regalo Netflix \$300',
+      idServicio: 178,
+      idCatTipoServicio: 11,
+      tipoFront: 1,
+      hasDigitoVerificador: false,
+      precio: 300.0,
+      showAyuda: false,
+      tipoReferencia: 'a',
+      legend: 'Para comenzar a ver: 1. Visita www.netflix.com/codigo 2. Ingresa el código.',
+    ),
     ProductoXml(
       idProducto: 186,
       servicio: 'Axtel',

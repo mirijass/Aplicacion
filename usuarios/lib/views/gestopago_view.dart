@@ -66,6 +66,8 @@ class _GestoPagoViewState extends State<GestoPagoView> {
   Future<void> _cargarCatalogoInicial() async {
     setState(() => _isLoading = true);
     final todos = await GestoPagoService.obtenerTodosLosProductos();
+    // Actualizar saldo real del distribuidor desde getBalance.do
+    GestoPagoService.consultarSaldoRealProveedor();
     if (mounted) {
       setState(() {
         _todosLosProductos = todos;
@@ -357,7 +359,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                           return 'El número telefónico es obligatorio';
                         }
                         if (!GestoPagoService.validarNumeroTelefonico(v)) {
-                          return 'Ingresa un número válido de 10 dígitos (sin iniciar en 0)';
+                          return 'Ingresa un número válido de 10 dígitos numéricos';
                         }
                         return null;
                       },
@@ -1907,41 +1909,23 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    icon: const Icon(Icons.refresh_rounded, size: 17),
-                    label: const Text('Reiniciar a \$2,500.00', style: TextStyle(fontSize: 12)),
+                    icon: const Icon(Icons.account_balance_wallet_outlined, size: 17),
+                    label: const Text('Consultar getBalance.do', style: TextStyle(fontSize: 12)),
                     onPressed: () async {
-                      await _saldoCtrl.reiniciarSaldoPruebas();
+                      final res = await GestoPagoService.consultarSaldoRealProveedor();
                       if (context.mounted) {
+                        final ok = res['exito'] == true;
                         ScaffoldMessenger.of(context)
                           ..clearSnackBars()
                           ..showSnackBar(
-                            const SnackBar(
-                              content: Text('Bolsa de saldo restablecida a \$2,500.00 MXN para pruebas'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                      }
-                    },
-                  ),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.errorColor,
-                      side: const BorderSide(color: AppTheme.errorColor),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    icon: const Icon(Icons.money_off_csred_rounded, size: 17),
-                    label: const Text('Comprobar Saldo \$0.00', style: TextStyle(fontSize: 12)),
-                    onPressed: () async {
-                      await _saldoCtrl.reiniciarSaldoPruebas(nuevoSaldo: 0.0);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context)
-                          ..clearSnackBars()
-                          ..showSnackBar(
-                            const SnackBar(
-                              content: Text('Saldo puesto en \$0.00 MXN para validar restricción de compras sin fondos.'),
-                              backgroundColor: AppTheme.errorColor,
-                              duration: Duration(seconds: 2),
+                            SnackBar(
+                              content: Text(
+                                ok
+                                    ? 'Saldo real sincronizado desde getBalance.do: \$${(res['saldo'] as double).toStringAsFixed(2)} MXN'
+                                    : (res['mensaje'] as String? ?? 'Error al consultar getBalance.do'),
+                              ),
+                              backgroundColor: ok ? const Color(0xFF2E7D32) : AppTheme.errorColor,
+                              duration: const Duration(seconds: 3),
                             ),
                           );
                       }
@@ -1953,7 +1937,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     icon: const Icon(Icons.sync_rounded, size: 17),
-                    label: const Text('Sync API Pruebas', style: TextStyle(fontSize: 12)),
+                    label: const Text('Sync API GestoPago', style: TextStyle(fontSize: 12)),
                     onPressed: _sincronizarConApiGestoPago,
                   ),
                 ],
@@ -2359,6 +2343,19 @@ class _GestoPagoViewState extends State<GestoPagoView> {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancelar'),
+          ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.autorenew_rounded, size: 15),
+            label: const Text('Generar en /authenticate/'),
+            onPressed: () async {
+              final generado = await GestoPagoService.solicitarNuevoTokenRemoto(
+                motivo: 'Generación directa desde /jwt-gp/authenticate/',
+              );
+              if (generado != null && generado.isNotEmpty) {
+                tokenCtrl.text = generado;
+                if (mounted) setState(() {});
+              }
+            },
           ),
           ElevatedButton(
             onPressed: () async {

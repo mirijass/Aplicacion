@@ -1,6 +1,6 @@
 import 'package:xml/xml.dart';
 
-/// Modelo de Mensaje proveniente de la respuesta XML (<MENSAJE>)
+/// Modelo de Mensaje proveniente de la respuesta XML (`<MENSAJE>`)
 class MensajeXml {
   final String codigo;
   final String texto;
@@ -18,7 +18,7 @@ class MensajeXml {
   }
 }
 
-/// Modelo de Producto proveniente de la respuesta XML (<producto>)
+/// Modelo de Producto proveniente de la respuesta XML (`<producto>`)
 class ProductoXml {
   final int? idProducto;
   final String servicio;
@@ -39,14 +39,14 @@ class ProductoXml {
     this.idServicio,
     this.idCatTipoServicio,
     this.tipoFront,
-    required this.hasDigitoVerificador,
+    this.hasDigitoVerificador = false,
     required this.precio,
-    required this.showAyuda,
-    required this.tipoReferencia,
-    required this.legend,
+    this.showAyuda = false,
+    this.tipoReferencia = 'a',
+    this.legend = '',
   });
 
-  /// Deserializar desde un elemento XML (<producto ...><legend>...</legend></producto>)
+  /// Deserializar desde un elemento XML (`<producto ...><legend>...</legend></producto>`)
   factory ProductoXml.fromXmlElement(XmlElement element) {
     final legendNode = element.findElements('legend').firstOrNull;
     final legendText = legendNode?.innerText.trim() ?? '';
@@ -141,9 +141,17 @@ class ProductoXml {
     }
     return 'https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://$domain&size=128';
   }
+
+  /// URL oficial del logo del servicio en GestoPago (`getServiceLogo`)
+  String get serviceLogoGestoPagoUrl =>
+      'https://gestopago.portalventas.net/sistema/images/gestopago/servicios/${idServicio ?? 79}.png';
+
+  /// URL oficial de la imagen de ayuda de referencia en GestoPago (`getReferenceImage`)
+  String get referenceImageGestoPagoUrl =>
+      'https://gestopago.portalventas.net/sistema/images/gestopago/referencias/${idServicio ?? 79}.jpg';
 }
 
-/// Respuesta Global parseada desde la etiqueta raíz <RESPONSE>
+/// Respuesta Global parseada desde la etiqueta raíz `<RESPONSE>`
 class RespuestaXml {
   final MensajeXml mensaje;
   final List<ProductoXml> productos;

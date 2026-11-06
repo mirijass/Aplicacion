@@ -74,7 +74,7 @@ class SaldoProveedorController extends ChangeNotifier {
   static const String _kSaldoKey = 'gestopago_saldo_proveedor_v1';
   static const String _kComisionesKey = 'gestopago_comisiones_ganadas_v1';
   static const String _kMovimientosKey = 'gestopago_movimientos_historial_v1';
-  static const double _kSaldoInicial = 2500.0; // Saldo inicial simulado
+  static const double _kSaldoInicial = 42999.89;
 
   double _saldo = _kSaldoInicial;
   double _comisionesGanadas = 0.0;
@@ -98,21 +98,6 @@ class SaldoProveedorController extends ChangeNotifier {
         _movimientos = decoded
             .map((item) => MovimientoSaldo.fromMap(Map<String, dynamic>.from(item as Map)))
             .toList();
-      } else {
-        // Movimiento inicial de bienvenida para simulación
-        _movimientos = [
-          MovimientoSaldo(
-            id: 'INIT-${DateTime.now().millisecondsSinceEpoch}',
-            tipo: TipoMovimientoSaldo.abono,
-            concepto: 'Apertura de Bolsa de Saldo Proveedor GestoPago',
-            monto: _kSaldoInicial,
-            comisionGanada: 0.0,
-            saldoResultante: _kSaldoInicial,
-            fecha: DateTime.now().toString().split('.')[0],
-            folio: 'GP-BOLSA-0001',
-          ),
-        ];
-        await _guardarMovimientos(prefs);
       }
     } catch (e) {
       debugPrint('Error al cargar saldo proveedor: $e');
@@ -138,7 +123,72 @@ class SaldoProveedorController extends ChangeNotifier {
     await prefs.setString(_kMovimientosKey, jsonEncode(listMap));
   }
 
-  /// Recarga saldo en la bolsa con el proveedor (simulado / real)
+  /// Sincroniza el saldo directamente con el valor `<SALDO>` devuelto por `getBalance.do` de GestoPago
+  Future<void> sincronizarSaldoDesdeServidor(
+    double saldoRealServidor, {
+    bool registrarMovimiento = false,
+  }) async {
+    final anterior = _saldo;
+    _saldo = saldoRealServidor;
+
+    if (registrarMovimiento && (anterior - saldoRealServidor).abs() >= 0.01) {
+      final folio = 'BAL-${DateTime.now().millisecondsSinceEpoch}';
+      _movimientos.insert(
+        0,
+        MovimientoSaldo(
+          id: folio,
+          tipo: TipoMovimientoSaldo.abono,
+          concepto: 'Sincronización de Saldo GestoPago (getBalance.do)',
+          monto: saldoRealServidor,
+          comisionGanada: 0.0,
+          saldoResultante: _saldo,
+          fecha: DateTime.now().toString().split('.')[0],
+          folio: folio,
+        ),
+      );
+    }
+
+    await _guardarDatos();
+    notifyListeners();
+  }
+
+  /// Registra el cargo aplicando el saldo real `<SALDO>` y `<COMISION>` devueltos por `sendTx.do`
+  Future<void> registrarCargoConSaldoServidor({
+    required double monto,
+    required double saldoServidorPosterior,
+    required double comisionProveedor,
+    required String concepto,
+    required String folio,
+    String? fechaServidor,
+    Map<String, dynamic>? detalles,
+  }) async {
+    if (saldoServidorPosterior > 0) {
+      _saldo = saldoServidorPosterior;
+    } else if (_saldo >= monto) {
+      _saldo -= monto;
+    }
+    _comisionesGanadas += comisionProveedor;
+
+    final mov = MovimientoSaldo(
+      id: 'TX-$folio-${DateTime.now().millisecondsSinceEpoch}',
+      tipo: TipoMovimientoSaldo.cargo,
+      concepto: concepto,
+      monto: monto,
+      comisionGanada: comisionProveedor,
+      saldoResultante: _saldo,
+      fecha: (fechaServidor != null && fechaServidor.isNotEmpty)
+          ? fechaServidor
+          : DateTime.now().toString().split('.')[0],
+      folio: folio,
+      detalles: detalles,
+    );
+
+    _movimientos.insert(0, mov);
+    await _guardarDatos();
+    notifyListeners();
+  }
+
+  /// Recarga saldo en la bolsa con el proveedor
   Future<void> recargarSaldo({
     required double monto,
     required String metodoPago,
@@ -174,7 +224,7 @@ class SaldoProveedorController extends ChangeNotifier {
     required double monto,
     required String concepto,
     required String folio,
-    double comisionGanada = 2.50,
+    double comisionGanada = 0.0,
     Map<String, dynamic>? detalles,
   }) async {
     if (_saldo < monto) {
@@ -202,7 +252,7 @@ class SaldoProveedorController extends ChangeNotifier {
     return true;
   }
 
-  /// Reinicia el saldo al monto base para pruebas simuladas
+  /// Actualiza el saldo de la bolsa a un monto específico
   Future<void> reiniciarSaldoPruebas({double nuevoSaldo = _kSaldoInicial}) async {
     _saldo = nuevoSaldo;
     _comisionesGanadas = 0.0;
@@ -210,14 +260,14 @@ class SaldoProveedorController extends ChangeNotifier {
 
     _movimientos.add(
       MovimientoSaldo(
-        id: 'RESET-${DateTime.now().millisecondsSinceEpoch}',
+        id: 'BAL-${DateTime.now().millisecondsSinceEpoch}',
         tipo: TipoMovimientoSaldo.abono,
-        concepto: 'Reinicio de Bolsa de Saldo para Pruebas Simuladas',
+        concepto: 'Actualización de Bolsa de Saldo GestoPago',
         monto: nuevoSaldo,
         comisionGanada: 0.0,
         saldoResultante: nuevoSaldo,
         fecha: DateTime.now().toString().split('.')[0],
-        folio: 'GP-RESET-01',
+        folio: 'GP-BAL-01',
       ),
     );
 

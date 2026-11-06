@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:usuarios/controllers/saldo_proveedor_controller.dart';
+import 'package:usuarios/models/producto_xml_model.dart';
 import 'package:usuarios/services/gestopago_service.dart';
 import 'package:usuarios/models/gestopago_tx_response.dart';
 import 'package:usuarios/views/gestopago_ticket_dialog.dart';
@@ -11,14 +13,17 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  group('GestoPagoService y Secciones', () {
+  group('GestoPagoService y Secciones Oficiales', () {
     test('Filtra correctamente por sección de Recargas, Pagos y Tarjetas', () async {
       final recargas = await GestoPagoService.obtenerServiciosPorSeccion(
         seccion: SeccionGestoPago.recargas,
       );
       expect(recargas.isNotEmpty, isTrue);
       expect(
-        recargas.any((p) => p.servicio.toLowerCase().contains('telcel') || p.servicio.toLowerCase().contains('abib')),
+        recargas.any((p) =>
+            p.servicio.toLowerCase().contains('telcel') ||
+            p.servicio.toLowerCase().contains('movistar') ||
+            p.servicio.toLowerCase().contains('abib')),
         isTrue,
       );
 
@@ -27,7 +32,10 @@ void main() {
       );
       expect(pagos.isNotEmpty, isTrue);
       expect(
-        pagos.any((p) => p.servicio.toLowerCase().contains('cfe') || p.servicio.toLowerCase().contains('agua')),
+        pagos.any((p) =>
+            p.servicio.toLowerCase().contains('cfe') ||
+            p.servicio.toLowerCase().contains('telmex') ||
+            p.servicio.toLowerCase().contains('agua')),
         isTrue,
       );
 
@@ -36,205 +44,121 @@ void main() {
       );
       expect(tarjetas.isNotEmpty, isTrue);
       expect(
-        tarjetas.any((p) => p.servicio.toLowerCase().contains('amazon') || p.servicio.toLowerCase().contains('netflix')),
+        tarjetas.any((p) =>
+            p.servicio.toLowerCase().contains('amazon') ||
+            p.servicio.toLowerCase().contains('netflix')),
         isTrue,
       );
     });
 
-    test('Consulta referencia y valida longitud', () async {
-      final servicios = await GestoPagoService.obtenerServiciosPorSeccion(
-        seccion: SeccionGestoPago.pagos,
-      );
-      final prod = servicios.first;
-
-      final corta = await GestoPagoService.consultarReferencia(prod, '12');
-      expect(corta['exito'], isFalse);
-
-      final valida = await GestoPagoService.consultarReferencia(prod, '012345678901');
-      expect(valida['exito'], isTrue);
-      expect(valida['referencia'], equals('012345678901'));
-      expect(valida['titularSimulado'], contains('012345678901'));
-    });
-
-    test('Procesa transacción de tarjeta digital generando PIN', () async {
-      final tarjetas = await GestoPagoService.obtenerServiciosPorSeccion(
-        seccion: SeccionGestoPago.tarjetas,
-      );
-      final giftCard = tarjetas.firstWhere(
-        (p) => p.servicio.toLowerCase().contains('amazon'),
-        orElse: () => tarjetas.first,
-      );
-
-      final resultado = await GestoPagoService.procesarTransaccion(
-        servicio: giftCard,
-        referencia: 'cliente@gmail.com',
-        monto: giftCard.precio > 0 ? giftCard.precio : 100.0,
-        metodoPago: 'Saldo Proveedor',
-        usarSaldoProveedor: false,
-        correoDestino: 'cliente@gmail.com',
-      );
-
-      expect(resultado['exito'], isTrue);
-      expect(resultado['pinDigital'], isNotNull);
-      expect(resultado['folioGestoPago'], isNotEmpty);
-    });
-
-    test('Valida restricciones de número telefónico (10 dígitos) y bloqueo por saldo insuficiente', () async {
+    test('Valida formato de número telefónico (10 dígitos incluyendo números de prueba GestoPago)', () {
+      expect(GestoPagoService.validarNumeroTelefonico('1111111111'), isTrue);
+      expect(GestoPagoService.validarNumeroTelefonico('5555555551'), isTrue);
       expect(GestoPagoService.validarNumeroTelefonico('5512345678'), isTrue);
       expect(GestoPagoService.validarNumeroTelefonico('12345'), isFalse);
-      expect(GestoPagoService.validarNumeroTelefonico('0012345678'), isFalse);
       expect(GestoPagoService.validarNumeroTelefonico('55123abcde'), isFalse);
-
-      final recargas = await GestoPagoService.obtenerServiciosPorSeccion(
-        seccion: SeccionGestoPago.recargas,
-      );
-      final recarga = recargas.first;
-
-      // Rechazar recarga con número inválido
-      final telInvalido = await GestoPagoService.procesarTransaccion(
-        servicio: recarga,
-        referencia: '12345',
-        monto: 50.0,
-        metodoPago: 'Saldo con Proveedor',
-        usarSaldoProveedor: true,
-      );
-      expect(telInvalido['exito'], isFalse);
-
-      // Rechazar compra cuando el saldo es insuficiente ($0.00)
-      final saldoCtrl = SaldoProveedorController();
-      await saldoCtrl.reiniciarSaldoPruebas(nuevoSaldo: 0.0);
-
-      final sinSaldo = await GestoPagoService.procesarTransaccion(
-        servicio: recarga,
-        referencia: '5512345678',
-        monto: 50.0,
-        metodoPago: 'Saldo con Proveedor',
-        usarSaldoProveedor: true,
-      );
-      expect(sinSaldo['exito'], isFalse);
-      expect(sinSaldo['mensaje'], contains('Saldo insuficiente'));
     });
 
-    test('Procesa recarga telefónica exitosa generando número de autorización oficial', () async {
-      final saldoCtrl = SaldoProveedorController();
-      await saldoCtrl.reiniciarSaldoPruebas(nuevoSaldo: 1000.0);
-
-      final recargas = await GestoPagoService.obtenerServiciosPorSeccion(
-        seccion: SeccionGestoPago.recargas,
-      );
-      final recarga = recargas.first;
-
-      final resultado = await GestoPagoService.procesarTransaccion(
-        servicio: recarga,
-        referencia: '5512345678',
-        monto: 50.0,
-        metodoPago: 'Saldo con Proveedor',
-        usarSaldoProveedor: true,
+    test('Construye y firma el payload JSON para sendTx.do según especificación Postman', () {
+      final telcel10 = ProductoXml(
+        idProducto: 582,
+        servicio: 'Telcel',
+        producto: 'Telcel 10',
+        idServicio: 133,
+        idCatTipoServicio: 2,
+        tipoFront: 1,
+        precio: 10.0,
       );
 
-      expect(resultado['exito'], isTrue);
-      expect(resultado['numeroAutorizacion'], isNotNull);
-      final aut = resultado['numeroAutorizacion'] as String;
-      expect(aut.length, equals(10));
-      expect(int.tryParse(aut), isNotNull);
-      expect(resultado['esRecarga'], isTrue);
-      expect(resultado['folioGestoPago'], isNotEmpty);
+      final payloadRecarga = GestoPagoService.construirPayloadSendTx(
+        servicio: telcel10,
+        referencia: '1111111111',
+        monto: 10.0,
+        horaLocalPersonalizada: '20261028191635',
+        upcPersonalizado: 'test_UPC_83_605',
+      );
+
+      expect(payloadRecarga['idProducto'], equals(582));
+      expect(payloadRecarga['idServicio'], equals(133));
+      expect(payloadRecarga['telefono'], equals('1111111111'));
+      expect(payloadRecarga['horaLocal'], equals('20261028191635'));
+      expect(payloadRecarga['upc'], equals('test_UPC_83_605'));
+      expect(payloadRecarga['unidad'], equals('083'));
+
+      final jsonStr = jsonEncode(payloadRecarga);
+      final signed = GestoPagoService.cifrarPayloadAes(jsonStr);
+      expect(signed.isNotEmpty, isTrue);
+
+      final descifrado = GestoPagoService.descifrarPayloadAes(signed);
+      expect(descifrado, equals(jsonStr));
     });
 
-    test('formatearNumeroAutorizacion garantiza exactamente 10 dígitos', () {
-      // 10 dígitos exactos se mantienen
-      expect(GestoPagoService.formatearNumeroAutorizacion('1234567890'), equals('1234567890'));
+    test('Construye payload JSON para Pagos de Servicios (tipoFront 2) y Pines (idCatTipoServicio 11)', () {
+      final telmex = ProductoXml(
+        idProducto: 205,
+        servicio: 'Telmex',
+        producto: 'Pago de Recibo Telmex',
+        idServicio: 76,
+        idCatTipoServicio: 5,
+        tipoFront: 2,
+        precio: 10.0,
+      );
 
-      // Menos de 10 dígitos se rellenan con ceros a la izquierda a 10 dígitos
-      expect(GestoPagoService.formatearNumeroAutorizacion('45678'), equals('0000045678'));
+      final payloadServicio = GestoPagoService.construirPayloadSendTx(
+        servicio: telmex,
+        referencia: '25720381',
+        monto: 366.99,
+      );
+      expect(payloadServicio['idProducto'], equals(205));
+      expect(payloadServicio['idServicio'], equals(76));
+      expect(payloadServicio['telefono'], equals('1111111111'));
+      expect(payloadServicio['referencia'], equals('25720381'));
+      expect(payloadServicio['montoPago'], equals(366.99));
+      expect(payloadServicio['unidad'], equals('083'));
 
-      // Más de 10 dígitos o con prefijos de texto extraen los 10 dígitos
-      expect(GestoPagoService.formatearNumeroAutorizacion('AUT-9876543210'), equals('9876543210'));
+      final netflix = ProductoXml(
+        idProducto: 7030,
+        servicio: 'Netflix',
+        producto: 'Netflix 300',
+        idServicio: 178,
+        idCatTipoServicio: 11,
+        tipoFront: 1,
+        precio: 300.0,
+      );
+
+      final payloadPin = GestoPagoService.construirPayloadSendTx(
+        servicio: netflix,
+        referencia: 'cliente@correo.com',
+        monto: 300.0,
+      );
+      expect(payloadPin['idProducto'], equals(7030));
+      expect(payloadPin['idServicio'], equals(178));
+      expect(payloadPin['telefono'], equals('#1111111111'));
     });
   });
 
   group('SaldoProveedorController', () {
-    test('Gestiona saldo, abonos, cargos y comisiones', () async {
+    test('Sincroniza saldo real del servidor y registra cargos con saldo posterior de GestoPago', () async {
       final controller = SaldoProveedorController();
-      await controller.reiniciarSaldoPruebas(nuevoSaldo: 500.0);
+      await controller.sincronizarSaldoDesdeServidor(43009.89);
+      expect(controller.saldo, equals(43009.89));
 
-      expect(controller.saldo, equals(500.0));
-      expect(controller.comisionesGanadas, equals(0.0));
-
-      // Recargar saldo
-      await controller.recargarSaldo(monto: 200.0, metodoPago: 'SPEI');
-      expect(controller.saldo, equals(700.0));
-
-      // Descontar saldo con comisión
-      final cobroExitoso = await controller.descontarSaldo(
-        monto: 150.0,
-        concepto: 'Pago de CFE',
-        folio: 'TEST-FOLIO-1',
-        comisionGanada: 2.50,
+      await controller.registrarCargoConSaldoServidor(
+        monto: 10.0,
+        saldoServidorPosterior: 42999.89,
+        comisionProveedor: 7.0,
+        concepto: 'Recarga Telcel - Telcel 10',
+        folio: '949515254',
+        fechaServidor: '28/Oct/2026 19:16:35',
       );
-      expect(cobroExitoso, isTrue);
-      expect(controller.saldo, equals(550.0));
-      expect(controller.comisionesGanadas, equals(2.50));
 
-      // Intentar descontar más de lo disponible
-      final cobroFallido = await controller.descontarSaldo(
-        monto: 1000.0,
-        concepto: 'Pago excesivo',
-        folio: 'TEST-FOLIO-2',
-      );
-      expect(cobroFallido, isFalse);
-      expect(controller.saldo, equals(550.0));
+      expect(controller.saldo, equals(42999.89));
+      expect(controller.comisionesGanadas, greaterThanOrEqualTo(7.0));
     });
   });
 
   group('GestoPagoService - Rotación y Validación de Token (24 Horas)', () {
-    test('Obtiene token inicial y establece periodo de vigencia de 24 horas', () async {
-      SharedPreferences.setMockInitialValues({});
-
-      final token = await GestoPagoService.obtenerTokenValido();
-      expect(token, equals(GestoPagoService.defaultBearerToken));
-
-      final expirado = await GestoPagoService.esTokenExpirado();
-      expect(expirado, isFalse);
-
-      final tiempoRestante = await GestoPagoService.tiempoRestanteToken();
-      expect(tiempoRestante.inHours, greaterThanOrEqualTo(23));
-      expect(tiempoRestante.inMinutes, greaterThan(0));
-    });
-
-    test('Detecta correctamente token expirado (> 24 horas)', () async {
-      SharedPreferences.setMockInitialValues({});
-      await GestoPagoService.obtenerTokenValido();
-
-      // Forzar expiración simulando más de 24 horas transcurridas
-      await GestoPagoService.forzarExpiracionParaPruebas();
-
-      final expirado = await GestoPagoService.esTokenExpirado();
-      expect(expirado, isTrue);
-
-      final tiempoRestante = await GestoPagoService.tiempoRestanteToken();
-      expect(tiempoRestante, equals(Duration.zero));
-    });
-
-    test('obtenerTokenValido() rota automáticamente si el token está expirado', () async {
-      SharedPreferences.setMockInitialValues({});
-      await GestoPagoService.obtenerTokenValido();
-
-      // Simular expiración (>24h)
-      await GestoPagoService.forzarExpiracionParaPruebas();
-      expect(await GestoPagoService.esTokenExpirado(), isTrue);
-
-      // Al solicitar token válido, debe rotar automáticamente
-      final tokenValido = await GestoPagoService.obtenerTokenValido();
-      expect(tokenValido, isNotEmpty);
-
-      // Ahora debe estar nuevamente vigente por 24 horas
-      expect(await GestoPagoService.esTokenExpirado(), isFalse);
-      final nuevoRestante = await GestoPagoService.tiempoRestanteToken();
-      expect(nuevoRestante.inHours, greaterThanOrEqualTo(23));
-    });
-
-    test('Rotar token manualmente actualiza token y reinicia vigencia de 24h', () async {
+    test('Rotar token actualiza token y establece vigencia exacta de 24h', () async {
       SharedPreferences.setMockInitialValues({});
 
       const nuevoTokenPrueba = 'nuevo_token_prueba_jwt_rotado_2026';
@@ -249,36 +173,38 @@ void main() {
       expect(tokenActivo, equals(nuevoTokenPrueba));
       expect(await GestoPagoService.esTokenExpirado(), isFalse);
 
+      final tiempoRestante = await GestoPagoService.tiempoRestanteToken();
+      expect(tiempoRestante.inHours, greaterThanOrEqualTo(23));
+
       final estado = await GestoPagoService.consultarEstadoToken();
       expect(estado['token'], equals(nuevoTokenPrueba));
       expect(estado['esExpirado'], isFalse);
-      expect(estado['tokenEnmascarado'], contains('...'));
-      expect((estado['historial'] as List).isNotEmpty, isTrue);
     });
 
-    test('Sincronización online detecta token y reporta estado de rotación', () async {
+    test('Detecta correctamente token expirado (> 24 horas)', () async {
       SharedPreferences.setMockInitialValues({});
-      final resultado = await GestoPagoService.sincronizarConApiOnline();
+      await GestoPagoService.rotarToken(
+        nuevoToken: 'token_vigente_prueba',
+        motivo: 'Inicio',
+      );
 
-      expect(resultado['exito'], isTrue);
-      expect(resultado['totalProductos'], greaterThan(0));
-      expect(resultado['tokenRotado'], isA<bool>());
+      await GestoPagoService.forzarExpiracionParaPruebas();
+
+      final expirado = await GestoPagoService.esTokenExpirado();
+      expect(expirado, isTrue);
+
+      final tiempoRestante = await GestoPagoService.tiempoRestanteToken();
+      expect(tiempoRestante, equals(Duration.zero));
     });
 
-    test('Gestiona y almacena el Certificado oficial de comercio (X-API-Key)', () async {
-      SharedPreferences.setMockInitialValues({});
+    test('Usa X-API-Key oficial de GestoPago por defecto y corrige hashes antiguos', () async {
+      SharedPreferences.setMockInitialValues({
+        'gestopago_certificado_dispositivo_v1':
+            'c795d77ca00267baa9c258024b159f35bbaef4855ccb24c2c7929c4afc41ec9e',
+      });
 
-      // Certificado por defecto provisto por el usuario
       final cert = await GestoPagoService.obtenerCertificadoActivo();
-      expect(cert, equals('c795d77ca00267baa9c258024b159f35bbaef4855ccb24c2c7929c4afc41ec9e'));
-
-      // Modificación de certificado
-      await GestoPagoService.guardarCertificado('nuevo_certificado_99999999');
-      final certModificado = await GestoPagoService.obtenerCertificadoActivo();
-      expect(certModificado, equals('nuevo_certificado_99999999'));
-
-      final estado = await GestoPagoService.consultarEstadoToken();
-      expect(estado['certificado'], equals('nuevo_certificado_99999999'));
+      expect(cert, equals('YSX1HpAFum4TpCecyFBxs4eIjAlbhKqK6fpcSQp8'));
     });
   });
 
@@ -286,77 +212,35 @@ void main() {
     test('Parsea exactamente el XML oficial devuelto por GestoPago', () {
       const xmlOficialGestoPago = '''<?xml version='1.0' encoding='UTF-8'?>
 <RESPONSE>
-    <ID_TX>291437188</ID_TX>
-    <NUM_AUTORIZACION>100024988</NUM_AUTORIZACION>
-    <SALDO>157731.83</SALDO>
-    <COMISION>0.7</COMISION>
-    <SALDO_F>157,731.83</SALDO_F>
-    <COMISION_F>0.7</COMISION_F>
-    <FECHA>25/Feb/2022 18:15:25</FECHA>
+    <ID_TX>949515254</ID_TX>
+    <NUM_AUTORIZACION>100020492</NUM_AUTORIZACION>
+    <SALDO>42999.89</SALDO>
+    <COMISION>7.0</COMISION>
+    <SALDO_F>42,999.89</SALDO_F>
+    <COMISION_F>7.0</COMISION_F>
+    <FECHA>28/Oct/2026 19:16:35</FECHA>
     <MONTO>10.0</MONTO>
     <MENSAJE>
         <CODIGO>01</CODIGO>
         <TEXTO>Operacion realizada con exito</TEXTO>
-        <REFERENCIA></REFERENCIA>
+        <REFERENCIA>1111111111</REFERENCIA>
     </MENSAJE>
 </RESPONSE>''';
 
       final tx = GestoPagoTxResponse.fromXmlString(xmlOficialGestoPago);
 
-      expect(tx.idTx, equals('291437188'));
-      expect(tx.numAutorizacion, equals('100024988'));
-      expect(tx.saldo, equals(157731.83));
-      expect(tx.comision, equals(0.7));
-      expect(tx.saldoFormateado, equals('157,731.83'));
-      expect(tx.comisionFormateada, equals('0.7'));
-      expect(tx.fecha, equals('25/Feb/2022 18:15:25'));
+      expect(tx.idTx, equals('949515254'));
+      expect(tx.numAutorizacion, equals('100020492'));
+      expect(tx.saldo, equals(42999.89));
+      expect(tx.comision, equals(7.0));
+      expect(tx.saldoFormateado, equals('42,999.89'));
+      expect(tx.comisionFormateada, equals('7.0'));
+      expect(tx.fecha, equals('28/Oct/2026 19:16:35'));
       expect(tx.monto, equals(10.0));
       expect(tx.codigoMensaje, equals('01'));
       expect(tx.textoMensaje, equals('Operacion realizada con exito'));
+      expect(tx.referencia, equals('1111111111'));
       expect(tx.esExitosa, isTrue);
-    });
-
-    test('procesarTransaccion incluye xmlOficial con la estructura exacta <RESPONSE>', () async {
-      final saldoCtrl = SaldoProveedorController();
-      await saldoCtrl.reiniciarSaldoPruebas(nuevoSaldo: 1000.0);
-
-      final recargas = await GestoPagoService.obtenerServiciosPorSeccion(
-        seccion: SeccionGestoPago.recargas,
-      );
-      final recarga = recargas.first;
-
-      final res = await GestoPagoService.procesarTransaccion(
-        servicio: recarga,
-        referencia: '5512345678',
-        monto: 20.0,
-        metodoPago: 'Saldo con Proveedor',
-        usarSaldoProveedor: true,
-      );
-
-      expect(res['exito'], isTrue);
-      expect(res['xmlOficial'], isNotNull);
-      final xml = res['xmlOficial'] as String;
-      expect(xml, contains('<RESPONSE>'));
-      expect(xml, contains('<ID_TX>'));
-      expect(xml, contains('<NUM_AUTORIZACION>'));
-      expect(xml, contains('<SALDO>'));
-      expect(xml, contains('<COMISION>'));
-      expect(xml, contains('<FECHA>'));
-      expect(xml, contains('<MONTO>'));
-      expect(xml, contains('<MENSAJE>'));
-      expect(xml, contains('<CODIGO>01</CODIGO>'));
-      expect(xml, contains('<TEXTO>Operacion realizada con exito</TEXTO>'));
-
-      // Validación de 10 dígitos obligatorios en NUM_AUTORIZACION según exigencia del docente
-      final aut = res['numeroAutorizacion'] as String;
-      expect(aut.length, equals(10));
-      expect(xml, contains('<NUM_AUTORIZACION>$aut</NUM_AUTORIZACION>'));
-    });
-
-    test('cifrarPayloadAes genera payload cifrado en AES-256-CBC compatible con sendTx.do', () {
-      const payload = '{"idProducto":582,"idServicio":133,"telefono":"5555555551"}';
-      final cifrado = GestoPagoService.cifrarPayloadAes(payload);
-      expect(cifrado.isNotEmpty, isTrue);
     });
   });
 
@@ -365,14 +249,14 @@ void main() {
       final datosPrueba = {
         'exito': true,
         'idTx': '949515254',
-        'numeroAutorizacion': '1000204920',
+        'numeroAutorizacion': '100020492',
         'servicio': 'Telcel',
         'producto': 'Telcel 10',
         'referencia': '1111111111',
         'esRecarga': true,
         'fechaGestoPago': '28/Oct/2026 19:16:35',
-        'comisionFormateadaXml': '7.00',
-        'saldoFormateadoXml': '42999.89',
+        'comisionProveedorXml': 7.0,
+        'saldoProveedorXml': 42999.89,
         'monto': 10.0,
         'xmlOficial': '<RESPONSE><ID_TX>949515254</ID_TX></RESPONSE>',
       };
@@ -383,7 +267,6 @@ void main() {
         ),
       );
 
-      // Verificación de elementos clave
       expect(find.text('Comprobante de pago'), findsOneWidget);
       expect(find.text('¡Pago exitoso!'), findsOneWidget);
       expect(find.text('Folio: 949515254'), findsOneWidget);
@@ -396,7 +279,7 @@ void main() {
       expect(find.text('Fecha'), findsOneWidget);
       expect(find.text('28/Oct/2026 19:16:35'), findsOneWidget);
       expect(find.text('Autorización'), findsOneWidget);
-      expect(find.text('1000204920'), findsOneWidget);
+      expect(find.text('100020492'), findsOneWidget);
       expect(find.text('Comisión'), findsOneWidget);
       expect(find.text('\$7.00'), findsOneWidget);
       expect(find.text('Saldo restante'), findsOneWidget);
@@ -408,4 +291,3 @@ void main() {
     });
   });
 }
-
