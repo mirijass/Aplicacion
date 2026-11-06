@@ -139,9 +139,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
         title: Row(
           children: [
             Icon(
-              resultado['esSimulado'] == true
-                  ? Icons.info_outline_rounded
-                  : Icons.cloud_done_rounded,
+              Icons.cloud_done_rounded,
               color: const Color(0xFF2E7D32),
             ),
             const SizedBox(width: 8),
@@ -174,6 +172,28 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                 ],
               ),
             ),
+            if (resultado['tokenRotado'] == true) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.autorenew_rounded, color: AppTheme.primaryPurple, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Token Bearer rotado y renovado por política oficial de 24 hrs.',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: AppTheme.primaryPurple),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -623,7 +643,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${resultadoConsulta!['titularSimulado']}',
+                                    '${resultadoConsulta!['titularContrato'] ?? resultadoConsulta!['titular'] ?? resultadoConsulta!['titularSimulado'] ?? 'CONTRATO REGISTRADO'}',
                                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -1305,13 +1325,15 @@ class _GestoPagoViewState extends State<GestoPagoView> {
 
     // Registrar en Historial de Compras global
     final curUser = widget.authController.currentUser;
+    final numAut = result['numeroAutorizacion'];
+    final autTexto = numAut != null ? ' | Aut: $numAut' : '';
     final nuevaCompra = Compra(
       usuarioId: curUser?.id ?? 1,
       usuarioNombre: curUser?.nombre ?? 'Cliente App',
       usuarioCorreo: curUser?.correo ?? 'cliente@ejemplo.com',
       total: monto,
       fecha: DateTime.now().toString().split('.')[0],
-      metodoPago: 'GestoPago: $metodoPago (Folio: ${result['folioGestoPago']} | Ref: $referencia)',
+      metodoPago: 'GestoPago: $metodoPago (Folio: ${result['folioGestoPago']}$autTexto | Ref: $referencia)',
       estado: 'Aplicado',
       items: [
         {
@@ -1320,10 +1342,11 @@ class _GestoPagoViewState extends State<GestoPagoView> {
           'cantidad': 1,
           'referencia': referencia,
           'folioGestoPago': result['folioGestoPago'],
-          if (result['pinDigital'] != null) 'pinDigital': result['pinDigital'],
+          'numeroAutorizacion': ?numAut,
+          'pinDigital': ?result['pinDigital'],
         }
       ],
-      direccionEntrega: 'Transacción Digital GestoPago (Ref: $referencia • Folio: ${result['folioGestoPago']})',
+      direccionEntrega: 'Transacción Digital GestoPago (Ref: $referencia • ${numAut != null ? "Aut: $numAut • " : ""}Folio: ${result['folioGestoPago']})',
     );
 
     if (widget.compraController != null) {
@@ -1908,7 +1931,7 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     icon: const Icon(Icons.money_off_csred_rounded, size: 17),
-                    label: const Text('Simular Saldo \$0.00', style: TextStyle(fontSize: 12)),
+                    label: const Text('Comprobar Saldo \$0.00', style: TextStyle(fontSize: 12)),
                     onPressed: () async {
                       await _saldoCtrl.reiniciarSaldoPruebas(nuevoSaldo: 0.0);
                       if (context.mounted) {
@@ -1935,7 +1958,12 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
+
+              // Tarjeta de Control y Rotación de Token Bearer (24 Horas)
+              _buildTokenCard(),
+
+              const SizedBox(height: 16),
 
               // Historial de Movimientos de la Bolsa
               const Text(
@@ -1995,8 +2023,12 @@ class _GestoPagoViewState extends State<GestoPagoView> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Folio: ${mov.folio} • ${mov.fecha}',
+                                  mov.detalles?['numeroAutorizacion'] != null
+                                      ? 'Aut: ${mov.detalles!['numeroAutorizacion']} • Folio: ${mov.folio} • ${mov.fecha}'
+                                      : 'Folio: ${mov.folio} • ${mov.fecha}',
                                   style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
@@ -2027,6 +2059,377 @@ class _GestoPagoViewState extends State<GestoPagoView> {
           ),
         );
       },
+    );
+  }
+
+  // ===========================================================================
+  // GESTIÓN Y VIGENCIA DEL TOKEN BEARER (24 HORAS)
+  // ===========================================================================
+
+  Widget _buildTokenCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return FutureBuilder<Map<String, dynamic>>(
+      future: GestoPagoService.consultarEstadoToken(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+        final data = snapshot.data!;
+        final esExpirado = data['esExpirado'] as bool;
+        final tiempoFormateado = data['tiempoFormateado'] as String;
+        final tokenMask = data['tokenEnmascarado'] as String;
+        final emision = (data['fechaEmision'] as DateTime).toString().split('.')[0];
+        final expiracion = (data['fechaExpiracion'] as DateTime).toString().split('.')[0];
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: esExpirado
+                  ? AppTheme.errorColor
+                  : AppTheme.primaryPurple.withValues(alpha: 0.25),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: esExpirado
+                          ? AppTheme.errorColor.withValues(alpha: 0.1)
+                          : AppTheme.primaryLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      esExpirado ? Icons.lock_clock_rounded : Icons.verified_user_rounded,
+                      size: 18,
+                      color: esExpirado ? AppTheme.errorColor : AppTheme.primaryPurple,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Token Bearer API (Rotación 24 hrs)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textMain,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: esExpirado
+                          ? AppTheme.errorColor.withValues(alpha: 0.15)
+                          : const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      esExpirado ? 'Expirado' : 'Vigente: $tiempoFormateado',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: esExpirado ? AppTheme.errorColor : const Color(0xFF2E7D32),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Token activo: $tokenMask',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        color: AppTheme.textMuted,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 16, color: AppTheme.primaryPurple),
+                    tooltip: 'Pegar Token Bearer (24h)',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _mostrarDialogoEditarToken(
+                      data['token'] as String? ?? GestoPagoService.defaultBearerToken,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Emitido: $emision',
+                    style: const TextStyle(fontSize: 10.5, color: AppTheme.textLight),
+                  ),
+                  Text(
+                    'Vence: $expiracion',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: esExpirado ? AppTheme.errorColor : AppTheme.textLight,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.black26 : const Color(0xFFF3E5F5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.primaryPurple.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.verified_rounded, size: 16, color: AppTheme.primaryPurple),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Certificado de Comercio (X-API-Key):',
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: AppTheme.primaryPurple),
+                          ),
+                          Text(
+                            data['certificadoEnmascarado'] as String? ?? '',
+                            style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppTheme.textMain),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 16, color: AppTheme.primaryPurple),
+                      tooltip: 'Editar Certificado',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () => _mostrarDialogoEditarCertificado(
+                        data['certificado'] as String? ?? GestoPagoService.defaultCertificado,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryPurple,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.key_rounded, size: 14),
+                    label: const Text('Actualizar Token (24h)', style: TextStyle(fontSize: 11)),
+                    onPressed: () => _mostrarDialogoEditarToken(
+                      data['token'] as String? ?? GestoPagoService.defaultBearerToken,
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.autorenew_rounded, size: 14),
+                    label: const Text('Rotar Ciclo', style: TextStyle(fontSize: 11)),
+                    onPressed: () async {
+                      await GestoPagoService.rotarToken(
+                        motivo: 'Rotación manual solicitada por el usuario',
+                      );
+                      setState(() {});
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context)
+                          ..clearSnackBars()
+                          ..showSnackBar(
+                            const SnackBar(
+                              content: Text('Token Bearer rotado con éxito. Nuevo ciclo de 24 horas iniciado.'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                      }
+                    },
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.timer_off_outlined, size: 14),
+                    label: const Text('Comprobar Expiración (24h)', style: TextStyle(fontSize: 11)),
+                    onPressed: () async {
+                      await GestoPagoService.forzarExpiracionParaPruebas();
+                      setState(() {});
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context)
+                          ..clearSnackBars()
+                          ..showSnackBar(
+                            const SnackBar(
+                              content: Text('Token configurado como expirado (>24h). La próxima petición lo rotará automáticamente.'),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                      }
+                    },
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.edit_outlined, size: 14),
+                    label: const Text('Cambiar Token', style: TextStyle(fontSize: 11)),
+                    onPressed: _mostrarDialogoEditarToken,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _mostrarDialogoEditarToken([String? actual]) {
+    final tokenCtrl = TextEditingController(text: actual ?? '');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.vpn_key_rounded, color: AppTheme.primaryPurple),
+            SizedBox(width: 8),
+            Text('Token Bearer GestoPago', style: TextStyle(fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ingresa un token JWT Bearer personalizado obtenido de GestoPago o Postman. Tendrá una vigencia de 24 horas a partir de su guardado.',
+              style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: tokenCtrl,
+              maxLines: 3,
+              style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+              decoration: InputDecoration(
+                hintText: 'Pega aquí el Token Bearer...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final nuevo = tokenCtrl.text.trim();
+              if (nuevo.isNotEmpty) {
+                await GestoPagoService.rotarToken(
+                  nuevoToken: nuevo,
+                  motivo: 'Token personalizado ingresado manualmente',
+                );
+                if (mounted) setState(() {});
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Guardar y Activar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarDialogoEditarCertificado(String actual) {
+    final certCtrl = TextEditingController(text: actual);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.verified_rounded, color: AppTheme.primaryPurple),
+            SizedBox(width: 8),
+            Text('Certificado GestoPago', style: TextStyle(fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Certificado único de comercio/dispositivo asignado por GestoPago (utilizado en el header X-API-Key para validar tus peticiones):',
+              style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: certCtrl,
+              maxLines: 3,
+              style: const TextStyle(fontSize: 11.5, fontFamily: 'monospace'),
+              decoration: InputDecoration(
+                hintText: 'Pega aquí el Certificado...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final nuevo = certCtrl.text.trim();
+              if (nuevo.isNotEmpty) {
+                await GestoPagoService.guardarCertificado(nuevo);
+                if (mounted) setState(() {});
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Guardar Certificado'),
+          ),
+        ],
+      ),
     );
   }
 }

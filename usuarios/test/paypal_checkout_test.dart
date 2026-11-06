@@ -4,9 +4,6 @@ import 'package:usuarios/views/paypal_checkout_dialog.dart';
 
 void main() {
   testWidgets('PayPalCheckoutDialog muestra los elementos de pago correctamente', (WidgetTester tester) async {
-    bool pagoExitoso = false;
-    String idTx = '';
-
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -17,10 +14,7 @@ void main() {
                   context,
                   total: 499.0,
                   usuarioEmail: 'test.paypal@ejemplo.com',
-                  onPagoExitoso: (txId, email) {
-                    pagoExitoso = true;
-                    idTx = txId;
-                  },
+                  onPagoExitoso: (_, __) {},
                 );
               },
               child: const Text('Abrir PayPal'),

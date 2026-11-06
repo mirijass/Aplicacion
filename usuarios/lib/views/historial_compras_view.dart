@@ -189,12 +189,16 @@ class _HistorialComprasViewState extends State<HistorialComprasView> {
   Widget _buildCompraCard(Compra compra) {
     String? refExtra;
     String? folioExtra;
+    String? autExtra;
     for (final it in compra.items) {
       if (it['referencia'] != null && it['referencia'].toString().isNotEmpty) {
         refExtra = it['referencia'].toString();
       }
       if (it['folioGestoPago'] != null && it['folioGestoPago'].toString().isNotEmpty) {
         folioExtra = it['folioGestoPago'].toString();
+      }
+      if (it['numeroAutorizacion'] != null && it['numeroAutorizacion'].toString().isNotEmpty) {
+        autExtra = it['numeroAutorizacion'].toString();
       }
     }
 
@@ -256,6 +260,13 @@ class _HistorialComprasViewState extends State<HistorialComprasView> {
             Text(
               'Referencia / Teléfono: $refExtra',
               style: const TextStyle(fontSize: 11.5, color: Color(0xFF2E7D32), fontWeight: FontWeight.w700),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          if (autExtra != null)
+            Text(
+              'No. de Autorización: $autExtra',
+              style: const TextStyle(fontSize: 11.5, color: AppTheme.primaryPurple, fontWeight: FontWeight.w800),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

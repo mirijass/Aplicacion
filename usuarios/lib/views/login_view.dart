@@ -11,8 +11,6 @@ import '../services/mail_helper.dart';
 import '../utils/app_theme.dart';
 import 'widgets/custom_text_field.dart';
 import 'registro_view.dart';
-import 'usuarios_list_view.dart';
-import 'lector_home_view.dart';
 import 'otp_view.dart';
 import 'productos_view.dart';
 import 'recuperar_usuario_dialog.dart';
