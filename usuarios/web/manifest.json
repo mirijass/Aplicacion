@@ -1,11 +1,11 @@
 {
-    "name": "usuarios",
-    "short_name": "usuarios",
+    "name": "Mi Tiendita - Gestión de Usuarios y Pagos",
+    "short_name": "Mi Tiendita",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F7F6FB",
+    "theme_color": "#6750A4",
+    "description": "Aplicación de gestión de usuarios, productos, compras y pagos con GestoPago.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

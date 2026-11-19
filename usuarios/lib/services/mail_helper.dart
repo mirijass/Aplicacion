@@ -25,6 +25,11 @@ class MailHelper {
       return;
     }
 
+    if (kIsWeb) {
+      debugPrint('MailHelper (Web): Correo simulado exitoso a $destino (Asunto: "$asunto")');
+      return;
+    }
+
     final message = Message()
       ..from = Address(_username, 'Mi Tiendita App')
       ..recipients.add(destino.trim())

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/usuario_controller.dart';
@@ -7,20 +6,12 @@ import 'controllers/compra_controller.dart';
 import 'controllers/theme_controller.dart';
 import 'services/db_helper.dart';
 import 'utils/app_theme.dart';
+import 'utils/http_overrides.dart';
 import 'views/login_view.dart';
-
-/// Permite cargar imágenes desde cualquier servidor HTTP/HTTPS en dispositivos físicos sin bloqueos de certificados
-class MyHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-  }
-}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  HttpOverrides.global = MyHttpOverrides();
+  setupHttpOverrides();
 
   // Inicializar servicio de base de datos
   final dbHelper = DBHelper();
