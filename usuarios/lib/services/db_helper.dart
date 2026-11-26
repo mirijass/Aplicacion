@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import '../models/usuario_model.dart';
@@ -18,6 +20,8 @@ class DBHelper {
   bool _isWebOrFallback = false;
   bool _tablesInitialized = false;
 
+  static const String _keyWebUsuarios = 'web_persistencia_usuarios_v1';
+
   // Almacenamiento en memoria para modo Web o fallback
   final List<Rol> _fallbackRoles = [
     Rol(id: 1, rol: 'admin'),
@@ -32,10 +36,51 @@ class DBHelper {
   int _nextProductoId = 1;
   int _nextCompraId = 1;
 
+  /// Guardar usuarios registrados en localStorage (Web)
+  Future<void> _saveWebPersistence() async {
+    if (!_isWebOrFallback) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final listMap = _fallbackUsuarios.map((u) => u.toMap()).toList();
+      await prefs.setString(_keyWebUsuarios, jsonEncode(listMap));
+    } catch (e) {
+      debugPrint('Error guardando usuarios web: $e');
+    }
+  }
+
+  /// Cargar usuarios registrados desde localStorage (Web)
+  Future<void> _loadWebPersistence() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_keyWebUsuarios);
+      if (raw != null && raw.isNotEmpty) {
+        final List<dynamic> list = jsonDecode(raw);
+        _fallbackUsuarios.clear();
+        for (final item in list) {
+          if (item is Map<String, dynamic>) {
+            _fallbackUsuarios.add(Usuario.fromMap(item));
+          }
+        }
+        if (_fallbackUsuarios.isNotEmpty) {
+          int maxId = 3;
+          for (final u in _fallbackUsuarios) {
+            if (u.id != null && u.id! > maxId) {
+              maxId = u.id!;
+            }
+          }
+          _nextId = maxId + 1;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error cargando usuarios web: $e');
+    }
+  }
+
   /// Inicializar el sistema de base de datos
   Future<void> init() async {
     if (kIsWeb) {
       _isWebOrFallback = true;
+      await _loadWebPersistence();
       _seedFallbackUsuarios();
       return;
     }
@@ -45,6 +90,7 @@ class DBHelper {
     } catch (e) {
       debugPrint('Aviso: Inicializando en modo compatibilidad/memoria: $e');
       _isWebOrFallback = true;
+      await _loadWebPersistence();
       _seedFallbackUsuarios();
     }
   }
@@ -346,6 +392,7 @@ class DBHelper {
         createdAt: usuario.createdAt ?? DateTime.now().toIso8601String(),
       );
       _fallbackUsuarios.insert(0, user);
+      await _saveWebPersistence();
       return newId;
     }
 
@@ -447,6 +494,7 @@ class DBHelper {
         if (usuario.roleId == 2) rolNom = 'editor';
 
         _fallbackUsuarios[index] = usuario.copyWith(rolNombre: rolNom);
+        await _saveWebPersistence();
         return 1;
       }
       return 0;
@@ -468,6 +516,7 @@ class DBHelper {
     if (_isWebOrFallback) {
       final countBefore = _fallbackUsuarios.length;
       _fallbackUsuarios.removeWhere((u) => u.id == id);
+      await _saveWebPersistence();
       return countBefore - _fallbackUsuarios.length;
     }
 

@@ -5,10 +5,12 @@ import 'package:usuarios/models/rol_model.dart';
 import 'package:usuarios/services/db_helper.dart';
 import 'package:usuarios/controllers/usuario_controller.dart';
 import 'package:usuarios/controllers/auth_controller.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:usuarios/views/registro_view.dart';
 
 void main() {
   setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
     final dbHelper = DBHelper();
     await dbHelper.init();
   });
