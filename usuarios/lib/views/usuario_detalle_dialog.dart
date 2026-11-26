@@ -381,18 +381,19 @@ class _UsuarioDetalleDialogState extends State<UsuarioDetalleDialog> {
               // Formulario de edición
               Form(
                 key: _editFormKey,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 child: Column(
                   children: [
                     CustomTextField(
                       controller: _nombreCtrl,
-                      label: 'Nombre Completo * (3 - 36 car.)',
+                      label: 'Nombre Completo * (3 - 108 car.)',
                       prefixIcon: Icons.person_outline_rounded,
-                      maxLength: 36,
+                      maxLength: 108,
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return 'Ingresa un nombre';
                         final t = v.trim();
-                        if (t.length < 3) return 'Debe tener al menos 3 caracteres';
-                        if (t.length > 36) return 'No puede exceder los 36 caracteres';
+                        if (t.length < 3) return 'Deben ser mínimo 3 caracteres';
+                        if (t.length > 108) return 'No puede exceder los 108 caracteres';
                         return null;
                       },
                     ),
@@ -434,13 +435,13 @@ class _UsuarioDetalleDialogState extends State<UsuarioDetalleDialog> {
                     const SizedBox(height: 12),
                     CustomTextField(
                       controller: _descCtrl,
-                      label: 'Descripción / Notas (máx 36 car.)',
+                      label: 'Descripción / Notas (máx 100 car.)',
                       prefixIcon: Icons.notes_rounded,
                       maxLines: 2,
-                      maxLength: 36,
+                      maxLength: 100,
                       validator: (v) {
-                        if (v != null && v.trim().length > 36) {
-                          return 'No puede exceder los 36 caracteres';
+                        if (v != null && v.trim().length > 100) {
+                          return 'No puede exceder los 100 caracteres';
                         }
                         return null;
                       },

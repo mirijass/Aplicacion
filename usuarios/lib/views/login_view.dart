@@ -762,54 +762,22 @@ class _SocialRegistroModalState extends State<_SocialRegistroModal> {
             ),
             const Divider(height: 24),
 
-            // Tarjeta informativa del rol asignado (Lector)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF2D2140) : AppTheme.primaryExtraLight,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isDark ? AppTheme.pastelMauve.withAlpha(60) : AppTheme.primaryLight,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.badge_rounded,
-                    color: isDark ? AppTheme.pastelMauve : AppTheme.primaryPurple,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Se creará tu cuenta con el perfil Lector (acceso a compras y catálogo).',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: textMain,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
             // Formulario de datos
             Form(
               key: _formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               child: Column(
                 children: [
                   CustomTextField(
                     controller: _nombreCtrl,
-                    label: 'Nombre Completo *',
+                    label: 'Nombre Completo * (3 - 108 car.)',
                     hint: 'Tu nombre completo',
                     prefixIcon: Icons.person_outline_rounded,
-                    maxLength: 36,
+                    maxLength: 108,
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Ingresa tu nombre';
-                      if (v.trim().length < 3) return 'Debe tener al menos 3 caracteres';
-                      if (v.trim().length > 36) return 'No puede exceder los 36 caracteres';
+                      if (v.trim().length < 3) return 'Deben ser mínimo 3 caracteres';
+                      if (v.trim().length > 108) return 'No puede exceder los 108 caracteres';
                       return null;
                     },
                   ),

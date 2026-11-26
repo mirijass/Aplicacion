@@ -208,6 +208,7 @@ class _RegistroViewState extends State<RegistroView> {
             builder: (context, _) {
               return Form(
                 key: _formKey,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -245,7 +246,7 @@ class _RegistroViewState extends State<RegistroView> {
                           // Apellido Paterno
                           CustomTextField(
                             controller: _apPaternoController,
-                            label: 'Apellido Paterno * (máx 36 car.)',
+                            label: 'Apellido Paterno * (3 - 36 car.)',
                             hint: 'ej. Pérez',
                             prefixIcon: Icons.badge_outlined,
                             maxLength: 36,
@@ -254,6 +255,9 @@ class _RegistroViewState extends State<RegistroView> {
                                 return 'Por favor ingresa el apellido paterno';
                               }
                               final trimmed = val.trim();
+                              if (trimmed.length < 3) {
+                                return 'Deben ser mínimo 3 caracteres';
+                              }
                               if (trimmed.length > 36) {
                                 return 'El apellido paterno no puede exceder los 36 caracteres';
                               }
@@ -265,7 +269,7 @@ class _RegistroViewState extends State<RegistroView> {
                           // Apellido Materno
                           CustomTextField(
                             controller: _apMaternoController,
-                            label: 'Apellido Materno * (máx 36 car.)',
+                            label: 'Apellido Materno * (3 - 36 car.)',
                             hint: 'ej. González',
                             prefixIcon: Icons.badge_outlined,
                             maxLength: 36,
@@ -274,6 +278,9 @@ class _RegistroViewState extends State<RegistroView> {
                                 return 'Por favor ingresa el apellido materno';
                               }
                               final trimmed = val.trim();
+                              if (trimmed.length < 3) {
+                                return 'Deben ser mínimo 3 caracteres';
+                              }
                               if (trimmed.length > 36) {
                                 return 'El apellido materno no puede exceder los 36 caracteres';
                               }
@@ -282,23 +289,23 @@ class _RegistroViewState extends State<RegistroView> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Nombres (min 3, max 36)
+                          // Nombres (min 3, max 108)
                           CustomTextField(
                             controller: _nombresController,
-                            label: 'Nombres * (3 - 36 car.)',
+                            label: 'Nombres * (3 - 108 car.)',
                             hint: 'ej. Juan Carlos',
                             prefixIcon: Icons.person_outline_rounded,
-                            maxLength: 36,
+                            maxLength: 108,
                             validator: (val) {
                               if (val == null || val.trim().isEmpty) {
                                 return 'Por favor ingresa tus nombres';
                               }
                               final trimmed = val.trim();
                               if (trimmed.length < 3) {
-                                return 'Los nombres deben tener al menos 3 caracteres';
+                                return 'Deben ser mínimo 3 caracteres';
                               }
-                              if (trimmed.length > 36) {
-                                return 'Los nombres no pueden exceder los 36 caracteres';
+                              if (trimmed.length > 108) {
+                                return 'Los nombres no pueden exceder los 108 caracteres';
                               }
                               return null;
                             },
@@ -390,100 +397,32 @@ class _RegistroViewState extends State<RegistroView> {
                           CustomTextField(
                             controller: _descController,
                             label:
-                                'Descripción / Notas (Opcional, máx 36 car.)',
+                                'Descripción / Notas (Opcional, máx 100 car.)',
                             hint: 'ej. Departamento de TI',
                             prefixIcon: Icons.notes_rounded,
                             maxLines: 2,
-                            maxLength: 36,
+                            maxLength: 100,
                             validator: (val) {
-                              if (val != null && val.trim().length > 36) {
-                                return 'La descripción no puede exceder los 36 caracteres';
+                              if (val != null && val.trim().length > 100) {
+                                return 'La descripción no puede exceder los 100 caracteres';
                               }
                               return null;
                             },
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 16),
 
-                          // Rol Asignado
-                          const Text(
-                            'Rol Asignado',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textMain,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-
-                          if (!_puedeCambiarRolLogeado) ...[
-                            // Tarjeta fija de Solo de Lectura (Lector) sin opciones adicionales
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppTheme.roleLectorBg,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: AppTheme.roleLectorText,
-                                  width: 1.8,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: AppTheme.roleLectorText.withAlpha(80),
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.visibility_rounded,
-                                      color: AppTheme.roleLectorText,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Solo de Lectura (Lector)',
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppTheme.roleLectorText,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Permisos de consulta y solo lectura asignados automáticamente',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: AppTheme.textMuted,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Container(
-                                    width: 22,
-                                    height: 22,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppTheme.roleLectorText,
-                                    ),
-                                    child: const Icon(
-                                      Icons.check,
-                                      size: 14,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
+                          // Rol Asignado (Solo se muestra si el usuario logeado es Admin y puede cambiarlo)
+                          if (_puedeCambiarRolLogeado) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Rol Asignado',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textMain,
                               ),
                             ),
-                          ] else ...[
+                            const SizedBox(height: 8),
                             const Text(
                               'Selecciona los permisos que tendrá el usuario:',
                               style: TextStyle(

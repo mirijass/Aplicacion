@@ -112,8 +112,12 @@ class UsuarioController extends ChangeNotifier {
     if (nombre.length < 3) {
       return 'El nombre debe tener al menos 3 caracteres';
     }
-    if (nombre.length > 36) {
-      return 'El nombre no puede exceder los 36 caracteres';
+    final partes = nombre.split(' ').where((p) => p.trim().isNotEmpty).toList();
+    if (partes.length <= 1 && nombre.length > 108) {
+      return 'El nombre no puede exceder los 108 caracteres';
+    }
+    if (nombre.length > 182) {
+      return 'El nombre excede el límite permitido';
     }
 
     final correo = usuario.correo.trim();
@@ -146,8 +150,8 @@ class UsuarioController extends ChangeNotifier {
     }
 
     if (usuario.desc != null && usuario.desc!.trim().isNotEmpty) {
-      if (usuario.desc!.trim().length > 36) {
-        return 'La descripción no puede exceder los 36 caracteres';
+      if (usuario.desc!.trim().length > 100) {
+        return 'La descripción no puede exceder los 100 caracteres';
       }
     }
 

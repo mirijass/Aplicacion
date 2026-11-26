@@ -1,9 +1,11 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:usuarios/models/usuario_model.dart';
 import 'package:usuarios/models/rol_model.dart';
 import 'package:usuarios/services/db_helper.dart';
 import 'package:usuarios/controllers/usuario_controller.dart';
 import 'package:usuarios/controllers/auth_controller.dart';
+import 'package:usuarios/views/registro_view.dart';
 
 void main() {
   setUpAll(() async {
@@ -336,5 +338,85 @@ void main() {
       );
       expect(resAdmin, isTrue);
     });
+
+    test('UsuarioController valida límites de Nombre (hasta 108) y Descripción (hasta 100)', () async {
+      final userCtrl = UsuarioController();
+
+      // Nombre de 108 caracteres es válido
+      final nombre108 = 'A' * 108;
+      final u108 = Usuario(
+        nombre: nombre108,
+        correo: 'nombre108_${DateTime.now().millisecondsSinceEpoch}@correo.com',
+        pass: 'Clave123!',
+        desc: 'D' * 100, // Descripción de 100 caracteres es válida
+        roleId: 3,
+      );
+      final rValido = await userCtrl.registrarUsuario(u108);
+      expect(rValido, isTrue);
+
+      // Nombre de más de 108 caracteres en campo único es rechazado
+      final uExcedeNombre = Usuario(
+        nombre: 'B' * 109,
+        correo: 'excede_${DateTime.now().millisecondsSinceEpoch}@correo.com',
+        pass: 'Clave123!',
+        roleId: 3,
+      );
+      final rInvalidoNombre = await userCtrl.registrarUsuario(uExcedeNombre);
+      expect(rInvalidoNombre, isFalse);
+      expect(userCtrl.errorMessage, contains('108 caracteres'));
+
+      // Descripción mayor a 100 caracteres es rechazada
+      final uExcedeDesc = Usuario(
+        nombre: 'Usuario Valido',
+        correo: 'desc_${DateTime.now().millisecondsSinceEpoch}@correo.com',
+        pass: 'Clave123!',
+        desc: 'X' * 101,
+        roleId: 3,
+      );
+      final rInvalidoDesc = await userCtrl.registrarUsuario(uExcedeDesc);
+      expect(rInvalidoDesc, isFalse);
+      expect(userCtrl.errorMessage, contains('100 caracteres'));
+    });
+
+    testWidgets('RegistroView valida inmediatamente "Deben ser mínimo 3 caracteres" con 2 letras y oculta tarjeta de modo lectura', (tester) async {
+      final userCtrl = UsuarioController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RegistroView(usuarioController: userCtrl),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Verificar que NO aparece el texto o tarjeta de "Solo de Lectura (Lector)" ni "Rol Asignado"
+      expect(find.text('Solo de Lectura (Lector)'), findsNothing);
+      expect(find.text('Rol Asignado'), findsNothing);
+
+      // 2. Probar validación inmediata en Nombres: escribir 2 caracteres ("Lu")
+      final nombresFinder = find.widgetWithText(TextFormField, '').first; // o por label
+      final customNombres = find.byWidgetPredicate(
+        (w) => w is TextFormField && find.descendant(of: find.byType(Column), matching: find.text('Nombres * (3 - 108 car.)')).evaluate().isNotEmpty,
+      );
+
+      // Buscar por el TextFormField debajo de Nombres
+      final allTextForms = find.byType(TextFormField);
+      // Índice 0: Ap Paterno, Índice 1: Ap Materno, Índice 2: Nombres
+      await tester.enterText(allTextForms.at(0), 'Lo'); // Ap Paterno con 2 caracteres
+      await tester.pump();
+      expect(find.text('Deben ser mínimo 3 caracteres'), findsOneWidget);
+
+      await tester.enterText(allTextForms.at(0), 'Lozano'); // Ap Paterno con 6 caracteres
+      await tester.pump();
+      expect(find.text('Deben ser mínimo 3 caracteres'), findsNothing);
+
+      await tester.enterText(allTextForms.at(2), 'Ab'); // Nombres con 2 caracteres
+      await tester.pump();
+      expect(find.text('Deben ser mínimo 3 caracteres'), findsOneWidget);
+
+      await tester.enterText(allTextForms.at(2), 'Ana'); // Nombres con 3 caracteres
+      await tester.pump();
+      expect(find.text('Deben ser mínimo 3 caracteres'), findsNothing);
+    });
   });
 }
+
