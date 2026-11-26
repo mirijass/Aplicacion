@@ -36,6 +36,8 @@ class DBHelper {
   int _nextProductoId = 1;
   int _nextCompraId = 1;
 
+  bool _webPersistenceLoaded = false;
+
   /// Guardar usuarios registrados en localStorage (Web)
   Future<void> _saveWebPersistence() async {
     if (!_isWebOrFallback) return;
@@ -57,8 +59,9 @@ class DBHelper {
         final List<dynamic> list = jsonDecode(raw);
         _fallbackUsuarios.clear();
         for (final item in list) {
-          if (item is Map<String, dynamic>) {
-            _fallbackUsuarios.add(Usuario.fromMap(item));
+          if (item is Map) {
+            final map = Map<String, dynamic>.from(item);
+            _fallbackUsuarios.add(Usuario.fromMap(map));
           }
         }
         if (_fallbackUsuarios.isNotEmpty) {
@@ -73,6 +76,15 @@ class DBHelper {
       }
     } catch (e) {
       debugPrint('Error cargando usuarios web: $e');
+    }
+  }
+
+  /// Garantizar que los datos de localStorage en Web se encuentren cargados
+  Future<void> _ensureWebLoaded() async {
+    if (_isWebOrFallback && !_webPersistenceLoaded) {
+      _webPersistenceLoaded = true;
+      await _loadWebPersistence();
+      _seedFallbackUsuarios();
     }
   }
 
@@ -327,39 +339,43 @@ class DBHelper {
   /// Sembrado para modo Web / Fallback
   void _seedFallbackUsuarios() {
     final now = DateTime.now().toIso8601String();
-    if (_fallbackUsuarios.isEmpty) {
-      _fallbackUsuarios.addAll([
-        Usuario(
-          id: 1,
-          nombre: 'Juan Pérez',
-          desc: 'Administrador general del sistema',
-          pass: '123456',
-          correo: 'juan@gmail.com',
-          roleId: 1,
-          rolNombre: 'admin',
-          createdAt: now,
-        ),
-        Usuario(
-          id: 2,
-          nombre: 'Pedro López',
-          desc: 'Editor de contenidos y reportes',
-          pass: '123456',
-          correo: 'pedro@gmail.com',
-          roleId: 2,
-          rolNombre: 'editor',
-          createdAt: now,
-        ),
-        Usuario(
-          id: 3,
-          nombre: 'Ana García',
-          desc: 'Usuario con permisos de solo lectura',
-          pass: '123456',
-          correo: 'ana@gmail.com',
-          roleId: 3,
-          rolNombre: 'lector',
-          createdAt: now,
-        ),
-      ]);
+    final defaultUsers = [
+      Usuario(
+        id: 1,
+        nombre: 'Juan Pérez',
+        desc: 'Administrador general del sistema',
+        pass: '123456',
+        correo: 'juan@gmail.com',
+        roleId: 1,
+        rolNombre: 'admin',
+        createdAt: now,
+      ),
+      Usuario(
+        id: 2,
+        nombre: 'Pedro López',
+        desc: 'Editor de contenidos y reportes',
+        pass: '123456',
+        correo: 'pedro@gmail.com',
+        roleId: 2,
+        rolNombre: 'editor',
+        createdAt: now,
+      ),
+      Usuario(
+        id: 3,
+        nombre: 'Ana García',
+        desc: 'Usuario con permisos de solo lectura',
+        pass: '123456',
+        correo: 'ana@gmail.com',
+        roleId: 3,
+        rolNombre: 'lector',
+        createdAt: now,
+      ),
+    ];
+
+    for (final defUser in defaultUsers) {
+      if (!_fallbackUsuarios.any((u) => u.correo.toLowerCase() == defUser.correo.toLowerCase())) {
+        _fallbackUsuarios.add(defUser);
+      }
     }
 
     if (_fallbackProductos.isEmpty) {
@@ -380,6 +396,7 @@ class DBHelper {
 
   /// Registrar un nuevo usuario
   Future<int> insertUsuario(Usuario usuario) async {
+    await _ensureWebLoaded();
     if (_isWebOrFallback) {
       final newId = _nextId++;
       String rolNom = 'lector';
@@ -408,6 +425,7 @@ class DBHelper {
 
   /// Obtener todos los usuarios con su rol correspondiente (mediante JOIN)
   Future<List<Usuario>> getUsuarios({String? query, int? roleId}) async {
+    await _ensureWebLoaded();
     if (_isWebOrFallback) {
       var list = List<Usuario>.from(_fallbackUsuarios);
 
@@ -461,6 +479,7 @@ class DBHelper {
 
   /// Obtener un usuario por su ID
   Future<Usuario?> getUsuarioById(int id) async {
+    await _ensureWebLoaded();
     if (_isWebOrFallback) {
       final matches = _fallbackUsuarios.where((u) => u.id == id);
       return matches.isNotEmpty ? matches.first : null;
@@ -484,6 +503,7 @@ class DBHelper {
 
   /// Actualizar datos de un usuario
   Future<int> updateUsuario(Usuario usuario) async {
+    await _ensureWebLoaded();
     if (usuario.id == null) return 0;
 
     if (_isWebOrFallback) {
@@ -513,6 +533,7 @@ class DBHelper {
 
   /// Eliminar un usuario por su ID
   Future<int> deleteUsuario(int id) async {
+    await _ensureWebLoaded();
     if (_isWebOrFallback) {
       final countBefore = _fallbackUsuarios.length;
       _fallbackUsuarios.removeWhere((u) => u.id == id);
@@ -532,6 +553,7 @@ class DBHelper {
 
   /// Verificar si un correo ya existe en la base de datos
   Future<bool> emailExists(String email, {int? excludeId}) async {
+    await _ensureWebLoaded();
     if (_isWebOrFallback) {
       return _fallbackUsuarios.any((u) =>
           u.correo.toLowerCase() == email.trim().toLowerCase() &&
@@ -555,6 +577,7 @@ class DBHelper {
 
   /// Autenticación de usuario por correo o nombre y contraseña
   Future<Usuario?> loginUser(String identificador, String pass) async {
+    await _ensureWebLoaded();
     if (_isWebOrFallback) {
       final idTrim = identificador.trim().toLowerCase();
       final matches = _fallbackUsuarios.where((u) =>
@@ -582,6 +605,7 @@ class DBHelper {
 
   /// Obtener un usuario por su correo electrónico
   Future<Usuario?> getUsuarioByCorreo(String correo) async {
+    await _ensureWebLoaded();
     if (_isWebOrFallback) {
       final matches = _fallbackUsuarios.where(
         (u) => u.correo.toLowerCase() == correo.trim().toLowerCase(),

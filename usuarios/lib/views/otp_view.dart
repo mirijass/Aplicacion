@@ -362,24 +362,40 @@ class _OtpViewState extends State<OtpView> {
                 ),
                 const SizedBox(height: 16),
 
-                // Indicador de clave de prueba para el profesor
+                // Indicador de clave de prueba y aclaración de Google Authenticator
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: AppTheme.inputFill,
-                    borderRadius: BorderRadius.circular(10),
+                    color: AppTheme.primaryExtraLight.withAlpha(120),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.primaryLight.withAlpha(150)),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: const Column(
                     children: [
-                      Icon(Icons.info_outline_rounded, size: 16, color: AppTheme.textMuted),
-                      SizedBox(width: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.smartphone_rounded, size: 18, color: AppTheme.primaryPurple),
+                          SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'El código 2FA se genera en la app Google Authenticator',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.primaryPurple,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 4),
                       Text(
-                        'Código de prueba académica disponible: 123456',
+                        'Aparece en la pantalla de tu celular (no llega por correo). También puedes usar el código de prueba académica: 123456',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           color: AppTheme.textMuted,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],

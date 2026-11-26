@@ -7,6 +7,7 @@ import '../controllers/compra_controller.dart';
 import '../models/usuario_model.dart';
 import '../services/mail_helper.dart';
 import '../utils/app_theme.dart';
+import '../utils/totp_helper.dart';
 import 'widgets/custom_text_field.dart';
 import 'otp_view.dart';
 
@@ -130,6 +131,22 @@ class _RegistroViewState extends State<RegistroView> {
     if (!mounted) return;
 
     if (success) {
+      // Intentar enviar correo con MailHelper
+      try {
+        final secret = TotpHelper.getSecretForEmail(nuevoUsuario.correo);
+        final mensaje = '¡Hola ${nuevoUsuario.nombre}!\n\n'
+            'Tu cuenta en Mi Tiendita App ha sido registrada exitosamente con el correo ${nuevoUsuario.correo}.\n\n'
+            'Tu clave secreta para Google Authenticator es:\n$secret\n\n'
+            'Escanea el código QR que se muestra en la pantalla de la aplicación para obtener tus códigos de seguridad.';
+        await MailHelper.sendEmail(
+          nuevoUsuario.correo,
+          'Bienvenido a Mi Tiendita - Cuenta Creada y Seguridad 2FA',
+          mensaje,
+        );
+      } catch (e) {
+        debugPrint('MailHelper aviso al registrar: $e');
+      }
+
       if (widget.authController != null) {
         await widget.authController!.login(nuevoUsuario.correo, nuevoUsuario.pass);
       }

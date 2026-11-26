@@ -37,7 +37,11 @@ class Usuario {
       pass: map['pass'] as String? ?? '',
       correo: map['correo'] as String? ?? '',
       roleId: map['role_id'] as int? ?? 3,
-      rolNombre: map['rol_nombre'] as String? ?? map['rol'] as String?,
+      rolNombre: map['rol_nombre'] as String? ??
+          map['rol'] as String? ??
+          (map['role_id'] == 1
+              ? 'admin'
+              : (map['role_id'] == 2 ? 'editor' : 'lector')),
       tokenRecuperacion: map['token_recuperacion'] as String?,
       tokenExpiracion: map['token_expiracion'] as String?,
       codigoVerificacion: map['codigo_verificacion'] as String?,
