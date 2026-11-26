@@ -1,14 +1,16 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/usuario_controller.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/compra_controller.dart';
 import '../controllers/theme_controller.dart';
 import '../utils/app_theme.dart';
+import '../utils/totp_helper.dart';
 import 'productos_view.dart';
 
-/// Pantalla de Autenticación de Doble Factor (2FA / OTP por Correo o SMS)
+/// Pantalla de Autenticación de Doble Factor (2FA) mediante Google Authenticator (RFC 6238 / TOTP)
 class OtpView extends StatefulWidget {
   final AuthController authController;
   final UsuarioController usuarioController;
@@ -16,7 +18,8 @@ class OtpView extends StatefulWidget {
   final CompraController compraController;
   final ThemeController? themeController;
   final String correoDestino;
-  final String otpGenerado;
+  final String? otpGenerado;
+  final String? secret;
 
   const OtpView({
     super.key,
@@ -26,7 +29,8 @@ class OtpView extends StatefulWidget {
     required this.compraController,
     this.themeController,
     required this.correoDestino,
-    required this.otpGenerado,
+    this.otpGenerado,
+    this.secret,
   });
 
   @override
@@ -34,36 +38,22 @@ class OtpView extends StatefulWidget {
 }
 
 class _OtpViewState extends State<OtpView> {
+  late final String _secret;
   final List<TextEditingController> _controllers =
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
-  int _segundosRestantes = 60;
-  Timer? _timer;
   bool _isVerifying = false;
   String? _errorMsg;
 
   @override
   void initState() {
     super.initState();
-    _iniciarTimer();
-  }
-
-  void _iniciarTimer() {
-    _timer?.cancel();
-    setState(() => _segundosRestantes = 60);
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_segundosRestantes > 0) {
-        setState(() => _segundosRestantes--);
-      } else {
-        t.cancel();
-      }
-    });
+    _secret = widget.secret ?? TotpHelper.getSecretForEmail(widget.correoDestino);
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
     for (var c in _controllers) {
       c.dispose();
     }
@@ -77,7 +67,7 @@ class _OtpViewState extends State<OtpView> {
     if (_isVerifying) return;
     final codigoIngresado = _controllers.map((c) => c.text.trim()).join();
     if (codigoIngresado.length < 6) {
-      setState(() => _errorMsg = 'Ingresa el código completo de 6 dígitos');
+      setState(() => _errorMsg = 'Ingresa el código completo de 6 dígitos de Google Authenticator');
       return;
     }
 
@@ -86,11 +76,24 @@ class _OtpViewState extends State<OtpView> {
       _errorMsg = null;
     });
 
-    // Validar código OTP
-    if (codigoIngresado == widget.otpGenerado || codigoIngresado == '123456') {
+    final isValid = TotpHelper.verifyTotp(_secret, codigoIngresado) ||
+        (widget.otpGenerado != null &&
+            widget.otpGenerado!.isNotEmpty &&
+            codigoIngresado == widget.otpGenerado);
+
+    if (isValid) {
       widget.usuarioController.cargarUsuarios();
       widget.productoController.setActiveUser(widget.authController.currentUser);
       widget.compraController.cargarCompras(usuarioLogeado: widget.authController.currentUser);
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('¡Autenticación con Google Authenticator exitosa!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
 
       Navigator.pushAndRemoveUntil(
         context,
@@ -108,92 +111,177 @@ class _OtpViewState extends State<OtpView> {
     } else {
       setState(() {
         _isVerifying = false;
-        _errorMsg = 'Código OTP incorrecto. Revisa el correo enviado.';
+        _errorMsg = 'Código incorrecto o expirado. Ingresa el código actual que muestra Google Authenticator.';
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final uriTotp = TotpHelper.getOtpAuthUri(
+      secret: _secret,
+      email: widget.correoDestino,
+      issuer: 'Mi Tiendita',
+    );
+
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       appBar: AppBar(
-        title: const Text('Autenticación de 2 Factores (2FA)'),
+        title: const Text('Google Authenticator (2FA)'),
         elevation: 0,
       ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Icono decorativo de Seguridad 2FA
+                // Icono decorativo de Google Authenticator / Seguridad
                 Center(
                   child: Container(
-                    width: 84,
-                    height: 84,
+                    width: 76,
+                    height: 76,
                     decoration: BoxDecoration(
                       color: AppTheme.primaryExtraLight,
                       shape: BoxShape.circle,
                       border: Border.all(color: AppTheme.primaryLight, width: 2),
                     ),
                     child: const Icon(
-                      Icons.mark_email_read_rounded,
-                      size: 42,
+                      Icons.qr_code_scanner_rounded,
+                      size: 40,
                       color: AppTheme.primaryPurple,
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 const Text(
-                  'Verificación de Seguridad',
+                  'Doble Factor (2FA)',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 22,
                     fontWeight: FontWeight.w800,
                     color: AppTheme.textMain,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Hemos enviado un código OTP de 6 dígitos a:\n${widget.correoDestino}',
+                const SizedBox(height: 6),
+                const Text(
+                  'Escanea el código QR desde la aplicación Google Authenticator en tu celular:',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13.5,
                     color: AppTheme.textMuted,
                     height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
-                // Hint de código para pruebas
+                // Tarjeta con Código QR de Google Authenticator
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppTheme.primaryLight, width: 2),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x157E57C2),
+                          blurRadius: 16,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        QrImageView(
+                          data: uriTotp,
+                          version: QrVersions.auto,
+                          size: 175.0,
+                          backgroundColor: Colors.white,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.correoDestino,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Clave secreta manual con botón de copiar
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: AppTheme.primaryExtraLight,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppTheme.primaryLight),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline_rounded, size: 20, color: AppTheme.primaryPurple),
+                      const Icon(Icons.key_rounded, size: 20, color: AppTheme.primaryPurple),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          'Código enviado: ${widget.otpGenerado} (o 123456)',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.deepPurple,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Clave manual (si no puedes escanear):',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.textMuted,
+                              ),
+                            ),
+                            SelectableText(
+                              _secret,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                                color: AppTheme.deepPurple,
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy_rounded, size: 20, color: AppTheme.primaryPurple),
+                        tooltip: 'Copiar clave',
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: _secret));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Clave secreta copiada al portapapeles'),
+                              backgroundColor: AppTheme.successColor,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
+
+                const Text(
+                  'Ingresa el código de 6 dígitos de Google Authenticator:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textMain,
+                  ),
+                ),
+                const SizedBox(height: 14),
 
                 // Campos de entrada para 6 dígitos OTP
                 Row(
@@ -239,7 +327,7 @@ class _OtpViewState extends State<OtpView> {
                     );
                   }),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
 
                 if (_errorMsg != null) ...[
                   Text(
@@ -251,7 +339,7 @@ class _OtpViewState extends State<OtpView> {
                       fontSize: 13,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                 ],
 
                 // Botón de Confirmación
@@ -266,43 +354,36 @@ class _OtpViewState extends State<OtpView> {
                       : const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.lock_open_rounded, size: 20),
+                            Icon(Icons.verified_user_rounded, size: 20),
                             SizedBox(width: 8),
-                            Text('Verificar e Ingresar'),
+                            Text('Verificar con Google Authenticator'),
                           ],
                         ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // Reenviar código
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('¿No recibiste el código? ', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
-                    TextButton(
-                      onPressed: _segundosRestantes == 0
-                          ? () {
-                              _iniciarTimer();
-                              widget.authController.enviarCodigoVerificacion(widget.correoDestino);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Nuevo código reenviado a tu correo'),
-                                  backgroundColor: AppTheme.successColor,
-                                ),
-                              );
-                            }
-                          : null,
-                      child: Text(
-                        _segundosRestantes > 0
-                            ? 'Reenviar en ${_segundosRestantes}s'
-                            : 'Reenviar Código',
+                // Indicador de clave de prueba para el profesor
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.inputFill,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 16, color: AppTheme.textMuted),
+                      SizedBox(width: 8),
+                      Text(
+                        'Código de prueba académica disponible: 123456',
                         style: TextStyle(
-                          color: _segundosRestantes == 0 ? AppTheme.primaryPurple : AppTheme.textMuted,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: AppTheme.textMuted,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),

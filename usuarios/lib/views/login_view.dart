@@ -138,9 +138,6 @@ class _LoginViewState extends State<LoginView> {
       prodCtrl.setActiveUser(widget.authController.currentUser);
       final compCtrl = widget.compraController ?? CompraController();
 
-      // Generar código de verificación OTP (2FA) para validar al entrar
-      final random = Random();
-      final otpToken = '${100000 + random.nextInt(900000)}';
       final correoUser = widget.authController.currentUser?.correo ??
           _identificadorController.text.trim();
 
@@ -166,12 +163,6 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
 
-      try {
-        await MailHelper.sendVerificationTokenEmail(correoUser, otpToken);
-      } catch (e) {
-        debugPrint('Aviso de envío de verificación en login: $e');
-      }
-
       if (!mounted) return;
       setState(() => _isSubmittingLogin = false);
 
@@ -185,7 +176,6 @@ class _LoginViewState extends State<LoginView> {
             compraController: compCtrl,
             themeController: widget.themeController,
             correoDestino: correoUser,
-            otpGenerado: otpToken,
           ),
         ),
       );
@@ -604,17 +594,6 @@ class _SocialRegistroModalState extends State<_SocialRegistroModal> {
       }
     }
 
-    // 2. Si es una cuenta nueva con Google, generar token OTP y enviarlo por correo
-    // Esto comprueba activamente que el correo de Gmail EXISTE y que el usuario puede recibir el código de 6 dígitos
-    final random = Random();
-    final otpToken = '${100000 + random.nextInt(900000)}';
-
-    try {
-      await MailHelper.sendVerificationTokenEmail(email, otpToken);
-    } catch (e) {
-      debugPrint('Aviso de envío de verificación: $e');
-    }
-
     // Registrar nuevo usuario con perfil Lector
     final nuevoUsuario = Usuario(
       nombre: nombre,
@@ -653,7 +632,7 @@ class _SocialRegistroModalState extends State<_SocialRegistroModal> {
 
     Navigator.pop(context); // Cerrar modal
 
-    // Redirigir a OtpView para requerir el código enviado al correo real de Gmail
+    // Redirigir a OtpView para vincular con Google Authenticator
     final prodCtrl = widget.productoController ?? ProductoController();
     final compCtrl = widget.compraController ?? CompraController();
 
@@ -667,7 +646,6 @@ class _SocialRegistroModalState extends State<_SocialRegistroModal> {
           compraController: compCtrl,
           themeController: widget.themeController,
           correoDestino: email,
-          otpGenerado: otpToken,
         ),
       ),
     );

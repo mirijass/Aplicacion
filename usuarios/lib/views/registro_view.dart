@@ -130,13 +130,6 @@ class _RegistroViewState extends State<RegistroView> {
     if (!mounted) return;
 
     if (success) {
-      final token = '${100000 + Random().nextInt(900000)}';
-      try {
-        await MailHelper.sendVerificationTokenEmail(nuevoUsuario.correo, token);
-      } catch (e) {
-        debugPrint('MailHelper token error: $e');
-      }
-
       if (widget.authController != null) {
         await widget.authController!.login(nuevoUsuario.correo, nuevoUsuario.pass);
       }
@@ -148,7 +141,7 @@ class _RegistroViewState extends State<RegistroView> {
           ..showSnackBar(
             SnackBar(
               content: Text(
-                '${widget.usuarioController.successMessage ?? 'Usuario registrado con éxito'}. Se ha enviado el código de verificación.',
+                '${widget.usuarioController.successMessage ?? 'Usuario registrado con éxito'}. Configura Google Authenticator para continuar.',
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               backgroundColor: AppTheme.successColor,
@@ -168,7 +161,6 @@ class _RegistroViewState extends State<RegistroView> {
               productoController: prodCtrl,
               compraController: compCtrl,
               correoDestino: nuevoUsuario.correo,
-              otpGenerado: token,
             ),
           ),
         );
