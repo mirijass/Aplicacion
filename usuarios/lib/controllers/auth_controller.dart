@@ -61,6 +61,52 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  /// Establecer sesión directa (usado tras verificación biométrica exitosa)
+  void loginDirecto(Usuario usuario) {
+    _currentUser = usuario;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// Autenticación biométrica por correo o identificador
+  Future<bool> loginBiometrico(String identificador) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final idTrim = identificador.trim();
+      if (idTrim.isNotEmpty) {
+        final user = await _dbHelper.getUsuarioByCorreo(idTrim);
+        if (user != null) {
+          _currentUser = user;
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        }
+      }
+
+      // Si no se especificó o no se encontró, obtener el primer usuario activo o Juan Pérez
+      final users = await _dbHelper.getUsuarios();
+      if (users.isNotEmpty) {
+        _currentUser = users.first;
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+
+      _errorMessage = 'No hay usuarios registrados para autenticación biométrica';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Error en autenticación biométrica: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Recuperación de contraseña enviando una clave temporal al correo del usuario
   Future<bool> recuperarContrasena(String email) async {
     if (email.trim().isEmpty) {

@@ -8,6 +8,7 @@ import '../controllers/compra_controller.dart';
 import '../controllers/theme_controller.dart';
 import '../utils/app_theme.dart';
 import '../utils/totp_helper.dart';
+import 'widgets/biometric_auth_dialog.dart';
 import 'productos_view.dart';
 
 /// Pantalla de Autenticación de Doble Factor (2FA) mediante Google Authenticator (RFC 6238 / TOTP)
@@ -114,6 +115,43 @@ class _OtpViewState extends State<OtpView> {
         _errorMsg = 'Código incorrecto o expirado. Ingresa el código actual que muestra Google Authenticator.';
       });
     }
+  }
+
+  void _verificarConBiometria() {
+    BiometricAuthDialog.show(
+      context,
+      titulo: 'Verificación 2FA con Biometría',
+      subtitulo: 'Desbloquea con Huella Dactilar o Face ID',
+      usuarioNombreOEmail: widget.correoDestino,
+      onSuccess: () {
+        widget.usuarioController.cargarUsuarios();
+        widget.productoController.setActiveUser(widget.authController.currentUser);
+        widget.compraController.cargarCompras(usuarioLogeado: widget.authController.currentUser);
+
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('¡Autenticación biométrica exitosa! 2FA verificado.'),
+              backgroundColor: AppTheme.successColor,
+            ),
+          );
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProductosView(
+              authController: widget.authController,
+              usuarioController: widget.usuarioController,
+              productoController: widget.productoController,
+              compraController: widget.compraController,
+              themeController: widget.themeController,
+            ),
+          ),
+          (route) => false,
+        );
+      },
+    );
   }
 
   @override
@@ -359,6 +397,34 @@ class _OtpViewState extends State<OtpView> {
                             Text('Verificar con Google Authenticator'),
                           ],
                         ),
+                ),
+                const SizedBox(height: 12),
+
+                // Botón alternativo de Biometría (Huella o Reconocimiento Facial)
+                OutlinedButton(
+                  onPressed: _isVerifying ? null : _verificarConBiometria,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: const BorderSide(color: AppTheme.primaryPurple, width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.fingerprint_rounded, color: AppTheme.primaryPurple, size: 22),
+                      SizedBox(width: 4),
+                      Icon(Icons.face_rounded, color: AppTheme.primaryPurple, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Desbloquear con Huella o Face ID',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryPurple,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../controllers/theme_controller.dart';
 import '../controllers/auth_controller.dart';
 import '../utils/app_theme.dart';
@@ -22,6 +23,32 @@ class ConfiguracionView extends StatefulWidget {
 class _ConfiguracionViewState extends State<ConfiguracionView> {
   bool _pinActivo = false;
   bool _biometriaActiva = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarAjustes();
+  }
+
+  void _cargarAjustes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _biometriaActiva = prefs.getBool('biometria_habilitada') ?? true;
+          _pinActivo = prefs.getBool('pin_habilitado') ?? false;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _guardarBiometria(bool val) async {
+    setState(() => _biometriaActiva = val);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('biometria_habilitada', val);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +114,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                         subtitle: const Text('Permite desbloqueo rápido con sensor del teléfono'),
                         secondary: const Icon(Icons.fingerprint_rounded, color: AppTheme.primaryPurple),
                         value: _biometriaActiva,
-                        onChanged: (val) => setState(() => _biometriaActiva = val),
+                        onChanged: _guardarBiometria,
                       ),
                       const Divider(height: 1),
                       SwitchListTile(

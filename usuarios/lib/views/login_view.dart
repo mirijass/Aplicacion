@@ -14,6 +14,7 @@ import 'registro_view.dart';
 import 'otp_view.dart';
 import 'productos_view.dart';
 import 'recuperar_usuario_dialog.dart';
+import 'widgets/biometric_auth_dialog.dart';
 
 /// Vista de Inicio de Sesión (Login con 2FA, Social Login y Recuperación)
 class LoginView extends StatefulWidget {
@@ -193,6 +194,71 @@ class _LoginViewState extends State<LoginView> {
           ),
         );
     }
+  }
+
+  void _iniciarConBiometria() async {
+    final identificador = _identificadorController.text.trim();
+    String targetEmail = identificador;
+
+    if (targetEmail.isEmpty) {
+      final db = DBHelper();
+      final users = await db.getUsuarios();
+      if (users.isNotEmpty) {
+        targetEmail = users.first.correo;
+      } else {
+        targetEmail = 'juan@gmail.com';
+      }
+    }
+
+    if (!mounted) return;
+
+    BiometricAuthDialog.show(
+      context,
+      titulo: 'Inicio de Sesión Biométrico',
+      subtitulo: 'Desbloquea tu cuenta con Huella o Face ID',
+      usuarioNombreOEmail: targetEmail,
+      onSuccess: () async {
+        final ok = await widget.authController.loginBiometrico(targetEmail);
+        if (!mounted) return;
+
+        if (ok) {
+          widget.usuarioController.cargarUsuarios();
+          final prodCtrl = widget.productoController ?? ProductoController();
+          prodCtrl.setActiveUser(widget.authController.currentUser);
+          final compCtrl = widget.compraController ?? CompraController();
+
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(
+              SnackBar(
+                content: Text('¡Bienvenido ${widget.authController.currentUser?.nombre}! Autenticado por Biometría.'),
+                backgroundColor: AppTheme.successColor,
+              ),
+            );
+
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductosView(
+                authController: widget.authController,
+                usuarioController: widget.usuarioController,
+                productoController: prodCtrl,
+                compraController: compCtrl,
+                themeController: widget.themeController,
+              ),
+            ),
+            (route) => false,
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(widget.authController.errorMessage ?? 'Error al autenticar por biometría'),
+              backgroundColor: AppTheme.errorColor,
+            ),
+          );
+        }
+      },
+    );
   }
 
   void _socialLogin(String proveedor) {
@@ -395,6 +461,38 @@ class _LoginViewState extends State<LoginView> {
                                         Text('Iniciar Sesión'),
                                       ],
                                     ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Botón de Inicio Rápido con Huella o Face ID
+                            OutlinedButton(
+                              onPressed: (_isSubmittingLogin || widget.authController.isLoading)
+                                  ? null
+                                  : _iniciarConBiometria,
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: BorderSide(color: linkColor, width: 1.5),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.fingerprint_rounded, color: linkColor, size: 22),
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.face_rounded, color: linkColor, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Ingresar con Huella o Face ID',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: linkColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: 20),
 
