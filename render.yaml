@@ -2,6 +2,7 @@ services:
   - type: web
     name: usuarios-gestopago
     env: static
+    autoDeployTrigger: commit
     buildCommand: echo "Despliegue de aplicacion Flutter Web listo"
     staticPublishPath: ./public
     routes:
